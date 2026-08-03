@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOMAIN = "h3x_energy_arbitrage"
+DOMAIN = "h3x_predictive_dispatch"
 REQUIRED_MANIFEST_KEYS = {
     "domain",
     "documentation",
@@ -45,9 +45,9 @@ def main() -> None:
         raise AssertionError(f"manifest domain must be {DOMAIN}")
     if str(manifest["version"]).endswith("-dev"):
         raise AssertionError("manifest version must be a release version")
-    if "h3x-energy-arbitrage" not in manifest["documentation"]:
+    if "h3x-predictive-dispatch" not in manifest["documentation"]:
         raise AssertionError("manifest documentation points to the wrong repository")
-    if "h3x-energy-arbitrage" not in manifest["issue_tracker"]:
+    if "h3x-predictive-dispatch" not in manifest["issue_tracker"]:
         raise AssertionError("manifest issue tracker points to the wrong repository")
 
     hacs = load_json(ROOT / "hacs.json")

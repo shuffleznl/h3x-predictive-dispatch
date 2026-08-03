@@ -1,14 +1,18 @@
-# Pylontech H3X Energy Arbitrage
+# Pylontech H3X Predictive Dispatch
 
 Home Assistant custom integration for Nord Pool driven charge/discharge decisions for a Pylontech Force H3X system.
 
-The `codex/predictive-dispatch-v1` branch is a ground-up optimizer redesign. Home Assistant I/O remains in the coordinator, while historical forecasting, tariff transformation, and model-predictive dispatch are independent modules that can be simulated without Home Assistant or live Modbus hardware.
+This standalone repository is the coexistence build of the ground-up predictive
+optimizer redesign. Home Assistant I/O remains in the coordinator, while
+historical forecasting, tariff transformation, and model-predictive dispatch
+are independent modules that can be simulated without Home Assistant or live
+Modbus hardware.
 
 This repository contains one HACS integration:
 
 | Integration | Domain | Purpose |
 | --- | --- | --- |
-| Pylontech H3X Energy Arbitrage | `h3x_energy_arbitrage` | Ingest Nord Pool prices, compute battery arbitrage decisions, and optionally control Pylontech H3X Bridge entities. |
+| Pylontech H3X Predictive Dispatch | `h3x_predictive_dispatch` | Ingest Nord Pool prices, compute battery arbitrage decisions, and optionally control Pylontech H3X Bridge entities. |
 
 ## Requirements
 
@@ -38,17 +42,26 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## HACS Installation
 
-1. In HACS, add `https://github.com/shuffleznl/h3x-energy-arbitrage` as a custom repository of type **Integration**.
-2. Install **Pylontech H3X Energy Arbitrage**.
+1. In HACS, add `https://github.com/shuffleznl/h3x-predictive-dispatch` as a custom repository of type **Integration**.
+2. Install **Pylontech H3X Predictive Dispatch**.
 3. Restart Home Assistant.
 4. Go to **Settings > Devices & services > Add integration**.
-5. Add **Pylontech H3X Energy Arbitrage** and review the detected Nord Pool area and Pylontech H3X Bridge entity IDs.
+5. Add **Pylontech H3X Predictive Dispatch** and review the detected Nord Pool area and Pylontech H3X Bridge entity IDs.
 
 ## Safe First Run
 
 Set **Enable automatic control** to off for the first run. The integration will still compute and expose decisions, prices, planned charge/discharge energy, and estimated value, but it will not write to the H3X entities.
 
 After the decision sensors look correct, enable automatic control from the integration options.
+
+### Parallel-operation safety
+
+`h3x_predictive_dispatch` can be installed and calculate schedules alongside
+the earlier `h3x_energy_arbitrage` integration because its domain, config entry,
+device, unique IDs, and entity namespace are separate. Both integrations still
+target the same Pylontech bridge actuator entities. Keep automatic control
+disabled in at least one integration at all times; enabling both controllers can
+make them overwrite each other's EMS mode and power reference every update.
 
 ## Default Controlled Entities
 
@@ -85,42 +98,42 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 
 ## Exposed Sensors
 
-- `sensor.h3x_energy_arbitrage_decision`
-- `sensor.h3x_energy_arbitrage_target_power`
-- `sensor.h3x_energy_arbitrage_target_power_percent`
-- `sensor.h3x_energy_arbitrage_battery_system_capacity`
-- `sensor.h3x_energy_arbitrage_battery_usable_capacity`
-- `sensor.h3x_energy_arbitrage_target_c_rate`
-- `sensor.h3x_energy_arbitrage_home_load_power`
-- `sensor.h3x_energy_arbitrage_solar_power`
-- `sensor.h3x_energy_arbitrage_forecast_load_power`
-- `sensor.h3x_energy_arbitrage_forecast_solar_power`
-- `sensor.h3x_energy_arbitrage_next_charge_slot`
-- `sensor.h3x_energy_arbitrage_next_discharge_slot`
-- `sensor.h3x_energy_arbitrage_periodic_full_charge_slot`
-- `sensor.h3x_energy_arbitrage_current_price`
-- `sensor.h3x_energy_arbitrage_price_trend`
-- `sensor.h3x_energy_arbitrage_decision_reason`
-- `sensor.h3x_energy_arbitrage_first_slot_value`
-- `sensor.h3x_energy_arbitrage_estimated_savings`
-- `sensor.h3x_energy_arbitrage_estimated_savings_today`
-- `sensor.h3x_energy_arbitrage_baseline_grid_cost`
-- `sensor.h3x_energy_arbitrage_optimized_grid_cost`
-- `sensor.h3x_energy_arbitrage_modeled_cycle_cost`
-- `sensor.h3x_energy_arbitrage_modeled_transition_cost`
-- `sensor.h3x_energy_arbitrage_load_forecast_mae`
-- `sensor.h3x_energy_arbitrage_planned_equivalent_full_cycles`
-- `sensor.h3x_energy_arbitrage_planned_charge_energy`
-- `sensor.h3x_energy_arbitrage_planned_discharge_energy`
-- `sensor.h3x_energy_arbitrage_planned_grid_charge_energy`
-- `sensor.h3x_energy_arbitrage_planned_solar_charge_energy`
-- `sensor.h3x_energy_arbitrage_planned_self_consumption_energy`
-- `sensor.h3x_energy_arbitrage_planned_battery_export_energy`
-- `sensor.h3x_energy_arbitrage_forecast_load_energy`
-- `sensor.h3x_energy_arbitrage_forecast_solar_energy`
-- `sensor.h3x_energy_arbitrage_price_plan`
-- `sensor.h3x_energy_arbitrage_price_resolution`
-- `sensor.h3x_energy_arbitrage_price_slots_available`
+- `sensor.pylontech_h3x_predictive_dispatch_decision`
+- `sensor.pylontech_h3x_predictive_dispatch_target_power`
+- `sensor.pylontech_h3x_predictive_dispatch_target_power_percent`
+- `sensor.pylontech_h3x_predictive_dispatch_battery_system_capacity`
+- `sensor.pylontech_h3x_predictive_dispatch_battery_usable_capacity`
+- `sensor.pylontech_h3x_predictive_dispatch_target_c_rate`
+- `sensor.pylontech_h3x_predictive_dispatch_home_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_solar_power`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power`
+- `sensor.pylontech_h3x_predictive_dispatch_next_charge_slot`
+- `sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot`
+- `sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot`
+- `sensor.pylontech_h3x_predictive_dispatch_current_price`
+- `sensor.pylontech_h3x_predictive_dispatch_price_trend`
+- `sensor.pylontech_h3x_predictive_dispatch_decision_reason`
+- `sensor.pylontech_h3x_predictive_dispatch_first_slot_value`
+- `sensor.pylontech_h3x_predictive_dispatch_estimated_savings`
+- `sensor.pylontech_h3x_predictive_dispatch_estimated_savings_today`
+- `sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_modeled_cycle_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_modeled_transition_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_load_forecast_mae`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_equivalent_full_cycles`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_charge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_discharge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_grid_charge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_solar_charge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_self_consumption_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_battery_export_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_price_plan`
+- `sensor.pylontech_h3x_predictive_dispatch_price_resolution`
+- `sensor.pylontech_h3x_predictive_dispatch_price_slots_available`
 
 The `next_charge_slot`, `next_discharge_slot`, and `periodic_full_charge_slot` sensors expose the first planned slot as the state and keep `start`, `end`, `energy_kwh`, `target_power_w`, `price`, `value`, `grid_charge_kwh`, `solar_charge_kwh`, `self_consumption_kwh`, and `battery_export_kwh` in attributes.
 
@@ -130,21 +143,21 @@ The `price_plan` sensor is a unitless diagnostic carrier for Lovelace charting. 
 
 The integration exposes Home Assistant control entities so the strategy can be adjusted without opening the full options form:
 
-- `select.h3x_energy_arbitrage_strategy_profile`: `conservative`, `typical`, `spread`, `aggressive`, or `custom`.
-- `select.h3x_energy_arbitrage_load_forecast_mode`: use Recorder history or the live flat fallback.
-- `select.h3x_energy_arbitrage_ev_forecast_mode`: `off`, automatic detection, or a dedicated EV power sensor.
-- `switch.h3x_energy_arbitrage_dutch_retail_tariff`: apply the Dutch retail transformation to Nord Pool wholesale prices.
+- `select.pylontech_h3x_predictive_dispatch_strategy_profile`: `conservative`, `typical`, `spread`, `aggressive`, or `custom`.
+- `select.pylontech_h3x_predictive_dispatch_load_forecast_mode`: use Recorder history or the live flat fallback.
+- `select.pylontech_h3x_predictive_dispatch_ev_forecast_mode`: `off`, automatic detection, or a dedicated EV power sensor.
+- `switch.pylontech_h3x_predictive_dispatch_dutch_retail_tariff`: apply the Dutch retail transformation to Nord Pool wholesale prices.
 - Load-history, EV threshold, forecast-risk, minimum-duration, start-penalty and direction-change number controls expose the model assumptions at runtime.
 - VAT, energy tax, supplier import markup and supplier export deduction controls keep yearly contract changes user-adjustable.
-- `select.h3x_energy_arbitrage_end_of_horizon_soc`: preserve the current SOC by the end of the horizon, or allow discharge down to reserve.
-- `select.h3x_energy_arbitrage_discharge_power_mode`: spread discharge over adjacent high-price slots, or keep the maximum economic target power.
-- `number.h3x_energy_arbitrage_battery_module_count`: set the installed Force H3 module count when it is not available from a bridge sensor.
-- `switch.h3x_energy_arbitrage_periodic_full_charge`: enable or disable the periodic full-charge constraint.
-- `number.h3x_energy_arbitrage_periodic_full_charge_interval`, `target_soc`, and `threshold_soc`: tune the periodic full-charge cadence and completion threshold.
-- `number.h3x_energy_arbitrage_discharge_spread_price_tolerance` and `discharge_spread_max_hours`: tune how far and how long discharge can be spread.
-- `number.h3x_energy_arbitrage_maximum_charge_c_rate` and `maximum_discharge_c_rate`: cap battery current demand from usable capacity. The range is `0.05C` to `0.5C`.
-- `select.h3x_energy_arbitrage_pv_orientation`: set the basic PV plane orientation.
-- `number.h3x_energy_arbitrage_pv_panel_count`, `pv_panel_wp_rating`, and `pv_inverter_limit`: tune the internal PV generation forecast.
+- `select.pylontech_h3x_predictive_dispatch_end_of_horizon_soc`: preserve the current SOC by the end of the horizon, or allow discharge down to reserve.
+- `select.pylontech_h3x_predictive_dispatch_discharge_power_mode`: spread discharge over adjacent high-price slots, or keep the maximum economic target power.
+- `number.pylontech_h3x_predictive_dispatch_battery_module_count`: set the installed Force H3 module count when it is not available from a bridge sensor.
+- `switch.pylontech_h3x_predictive_dispatch_periodic_full_charge`: enable or disable the periodic full-charge constraint.
+- `number.pylontech_h3x_predictive_dispatch_periodic_full_charge_interval`, `target_soc`, and `threshold_soc`: tune the periodic full-charge cadence and completion threshold.
+- `number.pylontech_h3x_predictive_dispatch_discharge_spread_price_tolerance` and `discharge_spread_max_hours`: tune how far and how long discharge can be spread.
+- `number.pylontech_h3x_predictive_dispatch_maximum_charge_c_rate` and `maximum_discharge_c_rate`: cap battery current demand from usable capacity. The range is `0.05C` to `0.5C`.
+- `select.pylontech_h3x_predictive_dispatch_pv_orientation`: set the basic PV plane orientation.
+- `number.pylontech_h3x_predictive_dispatch_pv_panel_count`, `pv_panel_wp_rating`, and `pv_inverter_limit`: tune the internal PV generation forecast.
 
 Strategy profiles apply these tradeoffs:
 

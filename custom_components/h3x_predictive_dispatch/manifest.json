@@ -1,0 +1,12 @@
+{
+  "domain": "h3x_predictive_dispatch",
+  "name": "Pylontech H3X Predictive Dispatch",
+  "after_dependencies": ["nordpool", "pylontech_h3x_bridge", "recorder"],
+  "codeowners": ["@shufflez", "@shuffleznl", "@openai"],
+  "config_flow": true,
+  "documentation": "https://github.com/shuffleznl/h3x-predictive-dispatch",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/shuffleznl/h3x-predictive-dispatch/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

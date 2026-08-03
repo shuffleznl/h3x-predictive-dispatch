@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INTEGRATION = ROOT / "custom_components" / "h3x_energy_arbitrage"
+INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
 
 PERIODIC_KEYS = (
     "periodic_full_charge_enabled",

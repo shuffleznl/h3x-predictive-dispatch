@@ -1,0 +1,729 @@
+title: H3X Predictive Dispatch
+views:
+  - title: Predictive dispatch
+    path: h3x-predictive-dispatch
+    icon: mdi:battery-charging-70
+    cards:
+      - type: markdown
+        title: H3X Predictive Dispatch
+        content: |
+          {% set plan_entity = 'sensor.pylontech_h3x_predictive_dispatch_price_plan' %}
+          {% set decision = states('sensor.pylontech_h3x_predictive_dispatch_decision') %}
+          {% set reason = states('sensor.pylontech_h3x_predictive_dispatch_decision_reason') %}
+          {% set price = states('sensor.pylontech_h3x_predictive_dispatch_current_price') %}
+          {% set value = states('sensor.pylontech_h3x_predictive_dispatch_estimated_savings') %}
+          {% set today_value = states('sensor.pylontech_h3x_predictive_dispatch_estimated_savings_today') %}
+          {% set currency = state_attr(plan_entity, 'currency') or 'EUR' %}
+          {% set load_source = state_attr('sensor.pylontech_h3x_predictive_dispatch_decision', 'home_load_power_source') %}
+          {% set solar_source = state_attr('sensor.pylontech_h3x_predictive_dispatch_decision', 'solar_forecast_source') %}
+
+          **Decision:** {{ decision if decision not in ['unknown', 'unavailable', 'none', 'None', ''] else 'waiting for optimizer data' }}
+
+          **Reason:** {{ reason if reason not in ['unknown', 'unavailable', 'none', 'None', ''] else 'not available yet' }}
+
+          **Current price:** {% if price not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ price }} {{ currency }}/kWh{% else %}waiting for Nord Pool price data{% endif %}
+
+          **Economic outlook:** {% if value not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ value }} {{ currency }} expected savings over the active horizon / {{ today_value }} {{ currency }} today{% else %}waiting for price, SOC, capacity, and forecast data{% endif %}
+
+          **Forecast inputs:** {{ load_source or 'load source unavailable' }}; {{ solar_source or 'solar forecast unavailable' }}
+
+          The schedule is recalculated every five minutes. Forecast uncertainty, conversion losses, battery wear, minimum action duration, Dutch tax/VAT, and grid limits are included before a command is issued.
+
+      - type: entities
+        title: Optimizer controls
+        show_header_toggle: false
+        entities:
+          - entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+            name: Strategy profile
+          - entity: select.pylontech_h3x_predictive_dispatch_load_forecast_mode
+            name: Load forecast
+          - entity: select.pylontech_h3x_predictive_dispatch_ev_forecast_mode
+            name: EV analysis
+          - entity: select.pylontech_h3x_predictive_dispatch_end_of_horizon_soc
+            name: End-of-horizon SOC
+          - entity: switch.pylontech_h3x_predictive_dispatch_dutch_retail_tariff
+            name: Dutch tax and VAT
+          - entity: switch.pylontech_h3x_predictive_dispatch_periodic_full_charge
+            name: Periodic full charge
+          - entity: number.pylontech_h3x_predictive_dispatch_load_history_window
+            name: Historical learning window
+          - entity: number.pylontech_h3x_predictive_dispatch_forecast_risk_percentile
+            name: Forecast risk percentile
+          - entity: number.pylontech_h3x_predictive_dispatch_minimum_action_duration
+            name: Minimum action duration
+          - entity: number.pylontech_h3x_predictive_dispatch_ev_detection_threshold
+            name: EV detection threshold
+          - entity: number.pylontech_h3x_predictive_dispatch_action_start_penalty
+            name: Action start penalty
+          - entity: number.pylontech_h3x_predictive_dispatch_direction_change_penalty
+            name: Direction change penalty
+          - entity: number.pylontech_h3x_predictive_dispatch_periodic_full_charge_interval
+            name: Full-charge interval
+          - entity: number.pylontech_h3x_predictive_dispatch_periodic_full_charge_target_soc
+            name: Full-charge target SOC
+          - entity: number.pylontech_h3x_predictive_dispatch_periodic_full_charge_threshold_soc
+            name: Full-charge threshold SOC
+          - entity: number.pylontech_h3x_predictive_dispatch_maximum_charge_c_rate
+            name: Maximum charge C-rate
+          - entity: number.pylontech_h3x_predictive_dispatch_maximum_discharge_c_rate
+            name: Maximum discharge C-rate
+          - entity: select.pylontech_h3x_predictive_dispatch_pv_orientation
+            name: PV orientation
+          - entity: number.pylontech_h3x_predictive_dispatch_pv_panel_count
+            name: PV panel count
+          - entity: number.pylontech_h3x_predictive_dispatch_pv_panel_wp_rating
+            name: PV panel Wp rating
+          - entity: number.pylontech_h3x_predictive_dispatch_pv_inverter_limit
+            name: PV inverter limit
+
+      - type: entities
+        title: Dutch retail price assumptions
+        show_header_toggle: false
+        entities:
+          - entity: number.pylontech_h3x_predictive_dispatch_vat
+            name: VAT
+          - entity: number.pylontech_h3x_predictive_dispatch_energy_tax_per_kwh
+            name: Energy tax excluding VAT
+          - entity: number.pylontech_h3x_predictive_dispatch_supplier_import_markup
+            name: Supplier import markup
+          - entity: number.pylontech_h3x_predictive_dispatch_supplier_export_deduction
+            name: Supplier export deduction
+
+      - type: grid
+        title: Current state
+        columns: 3
+        square: false
+        cards:
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_current_price
+            name: Current price
+            icon: mdi:cash-clock
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_price_trend
+            name: Price trend
+            icon: mdi:trending-up
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            name: Decision
+            icon: mdi:state-machine
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_target_power
+            name: Target power
+            icon: mdi:transmission-tower-export
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_target_c_rate
+            name: Target C-rate
+            icon: mdi:speedometer
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_price_resolution
+            name: Price resolution
+            icon: mdi:clock-outline
+          - type: tile
+            entity: sensor.pylontech_h3x_bridge_battery_soc
+            name: Battery SOC
+            icon: mdi:battery
+          - type: tile
+            entity: sensor.pylontech_h3x_bridge_battery_power
+            name: Battery power
+            icon: mdi:battery-charging
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_home_load_power
+            name: Home load
+            icon: mdi:home-lightning-bolt
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
+            name: Solar power
+            icon: mdi:solar-power
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_power
+            name: Forecast load
+            icon: mdi:home-analytics
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power
+            name: Forecast solar
+            icon: mdi:weather-sunny
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost
+            name: Baseline cost
+            icon: mdi:cash-remove
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost
+            name: Optimized cost
+            icon: mdi:cash-check
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_load_forecast_mae
+            name: Forecast MAE
+            icon: mdi:target
+
+      - type: markdown
+        title: Planned actions
+        content: |
+          {% set plan_entity = 'sensor.pylontech_h3x_predictive_dispatch_price_plan' %}
+          {% set currency = state_attr(plan_entity, 'currency') or 'EUR' %}
+          | Slot | When | Price | Power | Energy | Source/effect | Value |
+          |---|---|---:|---:|---:|---|---:|
+          {% for item in [
+            ('Charge', 'sensor.pylontech_h3x_predictive_dispatch_next_charge_slot'),
+            ('Discharge', 'sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot'),
+            ('Full charge', 'sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot')
+          ] %}
+          {% set entity_id = item[1] %}
+          {% set raw = states(entity_id) %}
+          {% set when = raw[5:16] | replace('T', ' ') if raw[:4] | int(0) > 2000 else raw | replace('_', ' ') %}
+          {% set price = state_attr(entity_id, 'price') %}
+          {% set power_w = state_attr(entity_id, 'target_power_w') %}
+          {% set energy = state_attr(entity_id, 'energy_kwh') %}
+          {% set value = state_attr(entity_id, 'value') %}
+          {% set grid_charge = state_attr(entity_id, 'grid_charge_kwh') %}
+          {% set solar_charge = state_attr(entity_id, 'solar_charge_kwh') %}
+          {% set self_use = state_attr(entity_id, 'self_consumption_kwh') %}
+          {% set export = state_attr(entity_id, 'battery_export_kwh') %}
+          {% set price_value = (price | float(0)) | round(3) %}
+          {% set power_value = ((power_w | float(0)) / 1000) | round(1) %}
+          {% set energy_value = (energy | float(0)) | round(2) %}
+          {% set value_value = (value | float(0)) | round(2) %}
+          {% set price_text = price_value ~ ' ' ~ currency ~ '/kWh' if price is not none else '-' %}
+          {% set power_text = power_value ~ ' kW' if power_w is not none else '-' %}
+          {% set energy_text = energy_value ~ ' kWh' if energy is not none else '-' %}
+          {% set value_text = value_value ~ ' ' ~ currency if value is not none else '-' %}
+          {% if item[0] == 'Charge' %}
+          {% set solar_kwh = (solar_charge | float(0)) | round(2) %}
+          {% set grid_kwh = (grid_charge | float(0)) | round(2) %}
+          {% set split = solar_kwh ~ ' solar / ' ~ grid_kwh ~ ' grid kWh' if solar_charge is not none or grid_charge is not none else '-' %}
+          {% elif item[0] == 'Discharge' %}
+          {% set self_kwh = (self_use | float(0)) | round(2) %}
+          {% set export_kwh = (export | float(0)) | round(2) %}
+          {% set split = self_kwh ~ ' self / ' ~ export_kwh ~ ' export kWh' if self_use is not none or export is not none else '-' %}
+          {% else %}
+          {% set split = 'periodic top-balance target' %}
+          {% endif %}
+          | {{ item[0] }} | {{ when if when not in ['unknown', 'unavailable', 'none', 'None', ''] else 'not planned' }} | {{ price_text }} | {{ power_text }} | {{ energy_text }} | {{ split }} | {{ value_text }} |
+          {% endfor %}
+
+          {% set plan = state_attr(plan_entity, 'dispatch_plan') or [] %}
+          {% set actionable = plan | selectattr('action', 'ne', 'idle') | list %}
+          {% if actionable | count > 0 %}
+          **Upcoming optimizer actions**
+
+          Idle diagnostic rows are hidden. Planned values can change whenever prices, SOC, load, PV forecast, or grid-limit readings update.
+
+          | Start | Intent | Buy / sell | Power | Energy | Source/effect | Confidence | Value |
+          |---|---|---:|---:|---:|---|---:|---:|
+          {% for slot in actionable[:10] %}
+          {% set start = (slot.start | default('-'))[5:16] | replace('T', ' ') %}
+          {% set intent = (slot.intent | default(slot.action) | replace('_', ' ')) | title %}
+          {% set buy_value = (slot.buy_price | default(slot.price) | float(0)) | round(3) %}
+          {% set sell_value = (slot.sell_price | default(slot.price) | float(0)) | round(3) %}
+          {% set power_value = ((slot.target_power_w | default(0) | float(0)) / 1000) | round(1) %}
+          {% set energy_value = (slot.energy_kwh | default(0) | float(0)) | round(2) %}
+          {% set value_value = (slot.value | default(0) | float(0)) | round(2) %}
+          {% set price_text = buy_value ~ ' / ' ~ sell_value %}
+          {% set power_text = power_value ~ ' kW' %}
+          {% set energy_text = energy_value ~ ' kWh' %}
+          {% set value_text = value_value ~ ' ' ~ currency %}
+          {% set confidence = ((slot.forecast_confidence | default(0) | float(0)) * 100) | round(0) %}
+          {% if slot.action == 'charge' %}
+          {% set solar_kwh = (slot.solar_charge_kwh | default(0) | float(0)) | round(2) %}
+          {% set grid_kwh = (slot.grid_charge_kwh | default(0) | float(0)) | round(2) %}
+          {% set split = solar_kwh ~ ' solar / ' ~ grid_kwh ~ ' grid kWh' %}
+          {% elif slot.action == 'discharge' %}
+          {% set self_kwh = (slot.self_consumption_kwh | default(0) | float(0)) | round(2) %}
+          {% set export_kwh = (slot.battery_export_kwh | default(0) | float(0)) | round(2) %}
+          {% set split = self_kwh ~ ' self / ' ~ export_kwh ~ ' export kWh' %}
+          {% else %}
+          {% set split = '-' %}
+          {% endif %}
+          | {{ start }} | {{ intent }} | {{ price_text }} | {{ power_text }} | {{ energy_text }} | {{ split }} | {{ confidence }}% | {{ value_text }} |
+          {% endfor %}
+          {% if actionable | count > 10 %}
+          Showing the first 10 of {{ actionable | count }} planned charge/discharge rows.
+          {% endif %}
+          {% else %}
+          No charge or discharge rows are currently planned. The optimizer is holding idle for the visible horizon.
+          {% endif %}
+
+      - type: custom:apexcharts-card
+        graph_span: 36h
+        span:
+          start: hour
+        now:
+          show: true
+          label: Now
+        header:
+          show: true
+          title: Dynamic price and actionable dispatch
+          show_states: true
+          colorize_states: true
+        yaxis:
+          - id: price
+            decimals: 3
+            apex_config:
+              title:
+                text: Price/kWh
+          - id: power
+            opposite: true
+            decimals: 1
+            apex_config:
+              title:
+                text: Battery kW
+        apex_config:
+          chart:
+            height: 360
+          stroke:
+            width: 2
+          tooltip:
+            shared: true
+          legend:
+            show: true
+        series:
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Price
+            yaxis_id: price
+            type: line
+            curve: stepline
+            color: "#1f77b4"
+            data_generator: |
+              const slots = entity.attributes.price_slots || [];
+              return slots.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const price = Number(slot.price);
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(price)) return [];
+                return [[start, price], [end, price]];
+              });
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Trend
+            yaxis_id: price
+            type: line
+            curve: smooth
+            color: "#d62728"
+            data_generator: |
+              const trend = entity.attributes.price_trend || [];
+              return trend.map((slot) => {
+                const start = new Date(slot.start).getTime();
+                const price = Number(slot.trend_price);
+                if (!Number.isFinite(start) || !Number.isFinite(price)) return null;
+                return [start, price];
+              }).filter(Boolean);
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Planned dispatch
+            yaxis_id: power
+            type: area
+            curve: stepline
+            color: "#2ca02c"
+            opacity: 0.25
+            data_generator: |
+              const plan = (entity.attributes.dispatch_plan || [])
+                .filter((slot) => slot.action === "charge" || slot.action === "discharge");
+              return plan.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const kw = Number(slot.target_power_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
+                const signedKw = slot.action === "charge" ? -kw : kw;
+                return [[start, signedKw], [end, signedKw]];
+              });
+
+      - type: custom:apexcharts-card
+        graph_span: 36h
+        span:
+          start: hour
+        now:
+          show: true
+          label: Now
+        header:
+          show: true
+          title: Load, solar, and net-grid forecast
+          show_states: true
+          colorize_states: true
+        yaxis:
+          - id: power
+            decimals: 1
+            apex_config:
+              title:
+                text: kW
+        apex_config:
+          chart:
+            height: 340
+          stroke:
+            width: 2
+          tooltip:
+            shared: true
+          legend:
+            show: true
+        series:
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Load p10
+            yaxis_id: power
+            type: line
+            curve: smooth
+            color: "#bdbdbd"
+            stroke_width: 1
+            opacity: 0.55
+            data_generator: |
+              const forecast = entity.attributes.load_forecast || [];
+              return forecast.map((slot) => {
+                const start = new Date(slot.start).getTime();
+                const kw = Number(slot.p10_w || 0) / 1000;
+                return Number.isFinite(start) && Number.isFinite(kw) ? [start, kw] : null;
+              }).filter(Boolean);
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Forecast load
+            yaxis_id: power
+            type: line
+            curve: stepline
+            color: "#7f7f7f"
+            data_generator: |
+              const forecast = entity.attributes.load_forecast || [];
+              return forecast.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const kw = Number(slot.power_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
+                return [[start, kw], [end, kw]];
+              });
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Load p90
+            yaxis_id: power
+            type: line
+            curve: smooth
+            color: "#616161"
+            stroke_width: 1
+            opacity: 0.65
+            data_generator: |
+              const forecast = entity.attributes.load_forecast || [];
+              return forecast.map((slot) => {
+                const start = new Date(slot.start).getTime();
+                const kw = Number(slot.p90_w || 0) / 1000;
+                return Number.isFinite(start) && Number.isFinite(kw) ? [start, kw] : null;
+              }).filter(Boolean);
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Forecast solar
+            yaxis_id: power
+            type: area
+            curve: smooth
+            color: "#ffbf00"
+            opacity: 0.25
+            data_generator: |
+              const forecast = entity.attributes.solar_forecast || [];
+              return forecast.map((slot) => {
+                const start = new Date(slot.start).getTime();
+                const kw = Number(slot.power_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(kw)) return null;
+                return [start, kw];
+              }).filter(Boolean);
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Net grid without battery
+            yaxis_id: power
+            type: line
+            curve: stepline
+            color: "#d62728"
+            data_generator: |
+              const plan = entity.attributes.dispatch_plan || [];
+              return plan.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const kw = Number(slot.net_grid_without_battery_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
+                return [[start, kw], [end, kw]];
+              });
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_plan
+            name: Net grid with battery
+            yaxis_id: power
+            type: line
+            curve: stepline
+            color: "#2ca02c"
+            data_generator: |
+              const plan = entity.attributes.dispatch_plan || [];
+              return plan.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const kw = Number(slot.net_grid_with_battery_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
+                return [[start, kw], [end, kw]];
+              });
+
+      - type: custom:apexcharts-card
+        graph_span: 24h
+        header:
+          show: true
+          title: Battery power and SOC
+          show_states: true
+          colorize_states: true
+        yaxis:
+          - id: power
+            decimals: 1
+            apex_config:
+              title:
+                text: kW
+          - id: soc
+            opposite: true
+            min: 0
+            max: 100
+            decimals: 0
+            apex_config:
+              title:
+                text: SOC %
+        apex_config:
+          chart:
+            height: 340
+          tooltip:
+            shared: true
+        series:
+          - entity: sensor.pylontech_h3x_bridge_battery_power
+            name: Battery power
+            yaxis_id: power
+            type: area
+            color: "#ff7f0e"
+            opacity: 0.2
+            transform: return Number(x) / 1000;
+            group_by:
+              func: avg
+              duration: 5min
+          - entity: sensor.pylontech_h3x_bridge_battery_soc
+            name: SOC
+            yaxis_id: soc
+            type: line
+            color: "#9467bd"
+            group_by:
+              func: avg
+              duration: 5min
+
+      - type: custom:apexcharts-card
+        graph_span: 7d
+        header:
+          show: true
+          title: Battery SOC history
+          show_states: true
+          colorize_states: true
+        yaxis:
+          - id: soc
+            min: 0
+            max: 100
+            decimals: 0
+            apex_config:
+              title:
+                text: SOC %
+        apex_config:
+          chart:
+            height: 260
+          stroke:
+            width: 2
+          tooltip:
+            shared: true
+        series:
+          - entity: sensor.pylontech_h3x_bridge_battery_soc
+            name: SOC
+            yaxis_id: soc
+            type: line
+            color: "#9467bd"
+            group_by:
+              func: avg
+              duration: 15min
+
+      - type: grid
+        title: Estimated value and energy balance
+        columns: 3
+        square: false
+        cards:
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_estimated_savings
+            name: Horizon value
+            icon: mdi:cash-multiple
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_estimated_savings_today
+            name: Today's value
+            icon: mdi:cash-clock
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost
+            name: Without optimization
+            icon: mdi:cash-remove
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost
+            name: With optimization
+            icon: mdi:cash-check
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_modeled_cycle_cost
+            name: Battery wear cost
+            icon: mdi:battery-heart-variant
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_modeled_transition_cost
+            name: Action penalties
+            icon: mdi:swap-horizontal
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_planned_equivalent_full_cycles
+            name: Planned full cycles
+            icon: mdi:battery-sync
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_first_slot_value
+            name: Current slot value
+            icon: mdi:clock-fast
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_planned_charge_energy
+            name: Planned charge
+            icon: mdi:battery-plus
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_planned_discharge_energy
+            name: Planned discharge
+            icon: mdi:battery-minus
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_planned_grid_charge_energy
+            name: Grid charge
+            icon: mdi:transmission-tower-import
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_planned_solar_charge_energy
+            name: Solar charge
+            icon: mdi:solar-power-variant
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_planned_self_consumption_energy
+            name: Battery to home
+            icon: mdi:home-battery
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_planned_battery_export_energy
+            name: Battery export
+            icon: mdi:transmission-tower-export
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_energy
+            name: Forecast load energy
+            icon: mdi:home-analytics
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_energy
+            name: Forecast solar energy
+            icon: mdi:solar-power
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_price_slots_available
+            name: Price slots
+            icon: mdi:calendar-clock
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_battery_system_capacity
+            name: System capacity
+            icon: mdi:battery-high
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_battery_usable_capacity
+            name: Usable capacity
+            icon: mdi:battery-check
+
+      - type: entities
+        title: Pylontech H3X controls
+        show_header_toggle: false
+        entities:
+          - entity: select.pylontech_h3x_bridge_ems_mode
+            name: EMS mode
+          - entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
+            name: Charge/discharge reference
+          - entity: number.pylontech_h3x_bridge_charge_limit_soc
+            name: Charge limit SOC
+          - entity: number.pylontech_h3x_bridge_discharge_limit_soc_eps
+            name: Discharge limit SOC
+          - entity: sensor.pylontech_h3x_bridge_battery_module_count
+            name: Battery modules
+          - entity: sensor.pylontech_h3x_bridge_battery_system_capacity
+            name: Bridge system capacity
+          - entity: sensor.pylontech_h3x_bridge_battery_usable_capacity
+            name: Bridge usable capacity
+          - entity: sensor.pylontech_h3x_bridge_bms_temperature
+            name: BMS temperature
+          - entity: sensor.pylontech_h3x_bridge_bms_soh
+            name: BMS SOH
+
+      - type: entities
+        title: Forecast diagnostics
+        show_header_toggle: false
+        entities:
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: home_load_power_source
+            name: Load source
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: solar_power_entity
+            name: Solar power entity
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: solar_forecast_source
+            name: Solar forecast source
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: solar_forecast_scale
+            name: Solar forecast scale
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: load_forecast_source
+            name: Load model
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: load_forecast_days
+            name: Training days
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: load_forecast_observations
+            name: Training quarters
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: load_forecast_mae_w
+            name: Backtest MAE
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: load_forecast_bias_w
+            name: Backtest bias
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: ev_forecast_mode
+            name: EV model
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: ev_sessions_detected
+            name: EV sessions learned
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: pv_orientation
+            name: PV orientation
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: pv_panel_count
+            name: PV panel count
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: pv_panel_wp
+            name: PV panel Wp
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: pv_peak_power_w
+            name: PV peak power
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: pv_inverter_limit_w
+            name: PV inverter limit
+
+      - type: entities
+        title: Arbitrage diagnostics
+        show_header_toggle: false
+        entities:
+          - entity: sensor.pylontech_h3x_predictive_dispatch_decision_reason
+            name: Decision reason
+          - entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
+            name: Next charge slot
+          - entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
+            name: Next discharge slot
+          - entity: sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot
+            name: Periodic full-charge slot
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_resolution
+            name: Price resolution
+          - entity: sensor.pylontech_h3x_predictive_dispatch_price_slots_available
+            name: Available slots
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: next_slot_start
+            name: Current slot start
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: next_slot_end
+            name: Current slot end
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: updated_at
+            name: Optimizer updated
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: apply_error
+            name: Last apply error

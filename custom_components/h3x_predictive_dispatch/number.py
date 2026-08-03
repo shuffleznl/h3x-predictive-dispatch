@@ -38,18 +38,18 @@ from .const import (
     CONF_PERIODIC_FULL_CHARGE_THRESHOLD_SOC,
     DOMAIN,
 )
-from .coordinator import H3XArbitrageCoordinator
+from .coordinator import H3XPredictiveDispatchCoordinator
 
 
 @dataclass(frozen=True, kw_only=True)
-class H3XArbitrageNumberDescription(NumberEntityDescription):
+class H3XPredictiveDispatchNumberDescription(NumberEntityDescription):
     """Describe an arbitrage number control."""
 
     option_key: str
 
 
-NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
-    H3XArbitrageNumberDescription(
+NUMBERS: tuple[H3XPredictiveDispatchNumberDescription, ...] = (
+    H3XPredictiveDispatchNumberDescription(
         key="load_history_days",
         translation_key="load_history_days",
         name="Load history window",
@@ -60,7 +60,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.DAYS,
         option_key=CONF_LOAD_HISTORY_DAYS,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="ev_charging_threshold",
         translation_key="ev_charging_threshold",
         name="EV detection threshold",
@@ -71,7 +71,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         option_key=CONF_EV_CHARGING_THRESHOLD_W,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="forecast_risk_percentile",
         translation_key="forecast_risk_percentile",
         name="Forecast risk percentile",
@@ -82,7 +82,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         option_key=CONF_FORECAST_RISK_PERCENTILE,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="minimum_action_duration",
         translation_key="minimum_action_duration",
         name="Minimum action duration",
@@ -93,7 +93,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.MINUTES,
         option_key=CONF_MIN_ACTION_DURATION_MINUTES,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="action_start_cost",
         translation_key="action_start_cost",
         name="Action start penalty",
@@ -103,7 +103,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=0.005,
         option_key=CONF_ACTION_START_COST,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="direction_change_cost",
         translation_key="direction_change_cost",
         name="Direction change penalty",
@@ -113,7 +113,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=0.005,
         option_key=CONF_DIRECTION_CHANGE_COST,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="vat_percent",
         translation_key="vat_percent",
         name="VAT",
@@ -124,7 +124,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         option_key=CONF_VAT_PERCENT,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="energy_tax_per_kwh",
         translation_key="energy_tax_per_kwh",
         name="Energy tax per kWh",
@@ -134,7 +134,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=0.00001,
         option_key=CONF_ENERGY_TAX_PER_KWH,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="supplier_buy_markup",
         translation_key="supplier_buy_markup",
         name="Supplier import markup",
@@ -144,7 +144,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=0.0001,
         option_key=CONF_SUPPLIER_BUY_MARKUP,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="supplier_sell_markdown",
         translation_key="supplier_sell_markdown",
         name="Supplier export deduction",
@@ -154,7 +154,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=0.0001,
         option_key=CONF_SUPPLIER_SELL_MARKDOWN,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="battery_module_count",
         translation_key="battery_module_count",
         name="Battery module count",
@@ -164,7 +164,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=1.0,
         option_key=CONF_BATTERY_MODULE_COUNT,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="periodic_full_charge_interval_days",
         translation_key="periodic_full_charge_interval_days",
         name="Periodic full-charge interval",
@@ -175,7 +175,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.DAYS,
         option_key=CONF_PERIODIC_FULL_CHARGE_INTERVAL_DAYS,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="periodic_full_charge_target_soc",
         translation_key="periodic_full_charge_target_soc",
         name="Periodic full-charge target SOC",
@@ -186,7 +186,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         option_key=CONF_PERIODIC_FULL_CHARGE_TARGET_SOC,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="periodic_full_charge_threshold_soc",
         translation_key="periodic_full_charge_threshold_soc",
         name="Periodic full-charge threshold SOC",
@@ -197,7 +197,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         option_key=CONF_PERIODIC_FULL_CHARGE_THRESHOLD_SOC,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="discharge_spread_price_tolerance",
         translation_key="discharge_spread_price_tolerance",
         name="Discharge spread price tolerance",
@@ -208,7 +208,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         option_key=CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="discharge_spread_max_hours",
         translation_key="discharge_spread_max_hours",
         name="Discharge spread maximum window",
@@ -219,7 +219,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.HOURS,
         option_key=CONF_DISCHARGE_SPREAD_MAX_HOURS,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="max_charge_c_rate",
         translation_key="max_charge_c_rate",
         name="Maximum charge C-rate",
@@ -229,7 +229,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=0.01,
         option_key=CONF_MAX_CHARGE_C_RATE,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="max_discharge_c_rate",
         translation_key="max_discharge_c_rate",
         name="Maximum discharge C-rate",
@@ -239,7 +239,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=0.01,
         option_key=CONF_MAX_DISCHARGE_C_RATE,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="pv_panel_count",
         translation_key="pv_panel_count",
         name="PV panel count",
@@ -249,7 +249,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_step=1.0,
         option_key=CONF_PV_PANEL_COUNT,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="pv_panel_wp",
         translation_key="pv_panel_wp",
         name="PV panel Wp rating",
@@ -260,7 +260,7 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         option_key=CONF_PV_PANEL_WP,
     ),
-    H3XArbitrageNumberDescription(
+    H3XPredictiveDispatchNumberDescription(
         key="pv_inverter_limit",
         translation_key="pv_inverter_limit",
         name="PV inverter limit",
@@ -280,25 +280,25 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up number controls from a config entry."""
-    coordinator: H3XArbitrageCoordinator = entry.runtime_data
+    coordinator: H3XPredictiveDispatchCoordinator = entry.runtime_data
     async_add_entities(
-        H3XArbitrageNumber(coordinator, entry, description)
+        H3XPredictiveDispatchNumber(coordinator, entry, description)
         for description in NUMBERS
     )
 
 
-class H3XArbitrageNumber(CoordinatorEntity[H3XArbitrageCoordinator], NumberEntity):
+class H3XPredictiveDispatchNumber(CoordinatorEntity[H3XPredictiveDispatchCoordinator], NumberEntity):
     """A runtime number control for the arbitrage optimizer."""
 
-    entity_description: H3XArbitrageNumberDescription
+    entity_description: H3XPredictiveDispatchNumberDescription
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(
         self,
-        coordinator: H3XArbitrageCoordinator,
+        coordinator: H3XPredictiveDispatchCoordinator,
         entry: ConfigEntry,
-        description: H3XArbitrageNumberDescription,
+        description: H3XPredictiveDispatchNumberDescription,
     ) -> None:
         """Initialize the number control."""
         super().__init__(coordinator)
@@ -306,9 +306,9 @@ class H3XArbitrageNumber(CoordinatorEntity[H3XArbitrageCoordinator], NumberEntit
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Pylontech H3X Energy Arbitrage",
+            "name": "Pylontech H3X Predictive Dispatch",
             "manufacturer": "Local",
-            "model": "Nord Pool Optimizer",
+            "model": "Predictive Energy Optimizer",
         }
 
     @property

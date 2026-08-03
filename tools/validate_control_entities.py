@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INTEGRATION = ROOT / "custom_components" / "h3x_energy_arbitrage"
+INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
 
 
 def read(path: Path) -> str:
@@ -49,7 +49,7 @@ def main() -> None:
             raise AssertionError(f"missing {filename}")
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
-    if "return H3XArbitrageOptionsFlow()" not in config_flow_source:
+    if "return H3XPredictiveDispatchOptionsFlow()" not in config_flow_source:
         raise AssertionError("options flow must use Home Assistant-managed config_entry")
     if "self.config_entry = config_entry" in config_flow_source:
         raise AssertionError("options flow must not assign self.config_entry")
@@ -141,8 +141,10 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "1.0.0-beta.1"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 1.0.0-beta.1")
+    if '"version": "0.1.0"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.1.0")
+    if "CONF_CONTROL_ENABLED: False" not in const_source:
+        raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
         raise AssertionError("stale Nord Pool config entries must fall back to auto")
     if "\"get_prices_for_date\"" not in coordinator_source:

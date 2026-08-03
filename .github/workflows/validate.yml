@@ -23,9 +23,15 @@ jobs:
         run: python tools/validate_periodic_full_charge.py
       - name: Validate runtime control entities
         run: python tools/validate_control_entities.py
+      - name: Validate solar self-consumption wiring
+        run: python tools/validate_solar_self_consumption.py
+      - name: Simulate predictive dispatch
+        run: python tools/validate_predictive_dispatch.py
+      - name: Validate predictive dashboard namespace
+        run: python tools/validate_predictive_dashboard.py
       - name: Validate JSON
         run: |
           python -m json.tool hacs.json > /dev/null
-          python -m json.tool custom_components/h3x_energy_arbitrage/manifest.json > /dev/null
-          python -m json.tool custom_components/h3x_energy_arbitrage/strings.json > /dev/null
-          python -m json.tool custom_components/h3x_energy_arbitrage/translations/en.json > /dev/null
+          python -m json.tool custom_components/h3x_predictive_dispatch/manifest.json > /dev/null
+          python -m json.tool custom_components/h3x_predictive_dispatch/strings.json > /dev/null
+          python -m json.tool custom_components/h3x_predictive_dispatch/translations/en.json > /dev/null

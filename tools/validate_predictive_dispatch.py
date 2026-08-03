@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-INTEGRATION = ROOT / "custom_components" / "h3x_energy_arbitrage"
-PACKAGE = "h3x_energy_arbitrage_validation"
+INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
+PACKAGE = "h3x_predictive_dispatch_validation"
 package = types.ModuleType(PACKAGE)
 package.__path__ = [str(INTEGRATION)]  # type: ignore[attr-defined]
 sys.modules[PACKAGE] = package

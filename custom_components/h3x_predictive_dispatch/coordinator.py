@@ -233,7 +233,7 @@ class Decision:
         return data
 
 
-class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Fetch prices, optimize dispatch, and apply H3X controls."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:

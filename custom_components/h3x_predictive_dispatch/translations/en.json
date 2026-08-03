@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Pylontech H3X Energy Arbitrage",
+        "title": "Pylontech H3X Predictive Dispatch",
         "description": "Configure Nord Pool price ingestion, H3X Modbus control entities, battery economics, and grid limits.",
         "data": {
           "nordpool_config_entry": "Nord Pool config entry ID",
@@ -97,7 +97,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Pylontech H3X Energy Arbitrage",
+        "title": "Pylontech H3X Predictive Dispatch",
         "description": "Update controller settings.",
         "data": {
           "nordpool_config_entry": "Nord Pool config entry ID",

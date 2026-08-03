@@ -7,7 +7,7 @@ import ast
 from pathlib import Path
 
 
-SENSOR_PATH = Path("custom_components/h3x_energy_arbitrage/sensor.py")
+SENSOR_PATH = Path("custom_components/h3x_predictive_dispatch/sensor.py")
 
 
 def keyword_name(node: ast.keyword) -> str:
@@ -43,7 +43,7 @@ def main() -> None:
         node
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
-        and dotted_name(node.func).endswith("H3XArbitrageSensorDescription")
+        and dotted_name(node.func).endswith("H3XPredictiveDispatchSensorDescription")
     ]
     if not descriptions:
         raise AssertionError("no sensor descriptions found")

@@ -110,7 +110,7 @@ from .const import (
 )
 
 
-class H3XArbitrageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
     VERSION = 1
@@ -129,7 +129,7 @@ class H3XArbitrageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title="Pylontech H3X Energy Arbitrage",
+                    title="Pylontech H3X Predictive Dispatch",
                     data=user_input,
                 )
 
@@ -145,10 +145,10 @@ class H3XArbitrageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
         """Create the options flow."""
-        return H3XArbitrageOptionsFlow()
+        return H3XPredictiveDispatchOptionsFlow()
 
 
-class H3XArbitrageOptionsFlow(config_entries.OptionsFlow):
+class H3XPredictiveDispatchOptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
 
     async def async_step_init(

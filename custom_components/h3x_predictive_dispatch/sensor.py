@@ -24,7 +24,7 @@ from .const import (
     NORDPOOL_CONF_CURRENCY,
     NORDPOOL_DOMAIN,
 )
-from .coordinator import H3XArbitrageCoordinator
+from .coordinator import H3XPredictiveDispatchCoordinator
 
 
 MONETARY_SENSOR_KEYS = frozenset(
@@ -55,7 +55,7 @@ UNRECORDED_PLAN_ATTRIBUTES = frozenset(
 
 
 @dataclass(frozen=True, kw_only=True)
-class H3XArbitrageSensorDescription(SensorEntityDescription):
+class H3XPredictiveDispatchSensorDescription(SensorEntityDescription):
     """Describe an arbitrage sensor."""
 
     value_fn: Callable[[dict[str, Any]], Any]
@@ -256,8 +256,8 @@ def _price_trend_attributes(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
-    H3XArbitrageSensorDescription(
+SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
+    H3XPredictiveDispatchSensorDescription(
         key="decision",
         translation_key="decision",
         name="Decision",
@@ -265,7 +265,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         value_fn=lambda data: data.get("action"),
         extra_fn=_decision_attributes,
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="target_power",
         translation_key="target_power",
         name="Target power",
@@ -274,7 +274,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("target_power_w"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="target_power_percent",
         translation_key="target_power_percent",
         name="Target power percent",
@@ -282,7 +282,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("target_power_percent"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="battery_system_capacity",
         translation_key="battery_system_capacity",
         name="Battery system capacity",
@@ -293,7 +293,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
             "battery_system_capacity_kwh"
         ),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="battery_usable_capacity",
         translation_key="battery_usable_capacity",
         name="Battery usable capacity",
@@ -304,7 +304,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
             "battery_usable_capacity_kwh"
         ),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="target_c_rate",
         translation_key="target_c_rate",
         name="Target C-rate",
@@ -312,7 +312,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:speedometer",
         value_fn=lambda data: (data.get("attributes") or {}).get("target_c_rate"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="home_load_power",
         translation_key="home_load_power",
         name="Home load power",
@@ -322,7 +322,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:home-lightning-bolt",
         value_fn=lambda data: data.get("load_power_w"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="solar_power",
         translation_key="solar_power",
         name="Solar power",
@@ -332,7 +332,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:solar-power",
         value_fn=lambda data: data.get("solar_power_w"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="forecast_load_power",
         translation_key="forecast_load_power",
         name="Forecast load power",
@@ -342,7 +342,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:home-analytics",
         value_fn=lambda data: data.get("forecast_load_power_w"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="forecast_solar_power",
         translation_key="forecast_solar_power",
         name="Forecast solar power",
@@ -352,7 +352,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:weather-sunny",
         value_fn=lambda data: data.get("forecast_solar_power_w"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="next_charge_slot",
         translation_key="next_charge_slot",
         name="Next charge slot",
@@ -360,7 +360,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         value_fn=lambda data: _slot_state(data, "next_charge_slot"),
         extra_fn=lambda data: _slot_attributes(data, "next_charge_slot"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="next_discharge_slot",
         translation_key="next_discharge_slot",
         name="Next discharge slot",
@@ -368,7 +368,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         value_fn=lambda data: _slot_state(data, "next_discharge_slot"),
         extra_fn=lambda data: _slot_attributes(data, "next_discharge_slot"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="periodic_full_charge_slot",
         translation_key="periodic_full_charge_slot",
         name="Periodic full-charge slot",
@@ -376,13 +376,13 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         value_fn=_periodic_full_charge_slot_state,
         extra_fn=lambda data: _slot_attributes(data, "periodic_full_charge_slot"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="current_price",
         translation_key="current_price",
         name="Current price",
         value_fn=lambda data: data.get("current_price"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="price_trend",
         translation_key="price_trend",
         name="Price trend",
@@ -390,21 +390,21 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         value_fn=lambda data: _attribute(data, "price_trend_direction"),
         extra_fn=_price_trend_attributes,
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="reason",
         translation_key="reason",
         name="Decision reason",
         icon="mdi:text-search",
         value_fn=lambda data: data.get("reason"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="first_slot_value",
         translation_key="first_slot_value",
         name="First slot value",
         device_class=SensorDeviceClass.MONETARY,
         value_fn=lambda data: data.get("estimated_first_slot_value"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="estimated_savings",
         translation_key="estimated_savings",
         name="Estimated savings",
@@ -412,7 +412,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:cash-multiple",
         value_fn=lambda data: data.get("estimated_plan_value"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="estimated_savings_today",
         translation_key="estimated_savings_today",
         name="Estimated savings today",
@@ -420,7 +420,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:cash-clock",
         value_fn=lambda data: data.get("estimated_today_value"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="baseline_grid_cost",
         translation_key="baseline_grid_cost",
         name="Baseline grid cost",
@@ -428,7 +428,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:cash-remove",
         value_fn=lambda data: _attribute(data, "baseline_grid_cost"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="optimized_grid_cost",
         translation_key="optimized_grid_cost",
         name="Optimized grid cost",
@@ -436,7 +436,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:cash-check",
         value_fn=lambda data: _attribute(data, "optimized_grid_cost"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="modeled_cycle_cost",
         translation_key="modeled_cycle_cost",
         name="Modeled cycle cost",
@@ -444,7 +444,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:battery-heart-variant",
         value_fn=lambda data: _attribute(data, "modeled_cycle_cost"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="modeled_transition_cost",
         translation_key="modeled_transition_cost",
         name="Modeled transition cost",
@@ -452,7 +452,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:swap-horizontal",
         value_fn=lambda data: _attribute(data, "modeled_transition_cost"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="forecast_accuracy",
         translation_key="forecast_accuracy",
         name="Load forecast MAE",
@@ -462,7 +462,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:target",
         value_fn=lambda data: _attribute(data, "load_forecast_mae_w"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="equivalent_full_cycles",
         translation_key="equivalent_full_cycles",
         name="Planned equivalent full cycles",
@@ -470,7 +470,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:battery-sync",
         value_fn=lambda data: _attribute(data, "equivalent_full_cycles"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="planned_charge_energy",
         translation_key="planned_charge_energy",
         name="Planned charge energy",
@@ -479,7 +479,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:battery-plus",
         value_fn=lambda data: data.get("planned_charge_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="planned_discharge_energy",
         translation_key="planned_discharge_energy",
         name="Planned discharge energy",
@@ -488,7 +488,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:battery-minus",
         value_fn=lambda data: data.get("planned_discharge_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="planned_grid_charge_energy",
         translation_key="planned_grid_charge_energy",
         name="Planned grid charge energy",
@@ -497,7 +497,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:transmission-tower-import",
         value_fn=lambda data: data.get("planned_grid_charge_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="planned_solar_charge_energy",
         translation_key="planned_solar_charge_energy",
         name="Planned solar charge energy",
@@ -506,7 +506,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:solar-power-variant",
         value_fn=lambda data: data.get("planned_solar_charge_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="planned_self_consumption_energy",
         translation_key="planned_self_consumption_energy",
         name="Planned self-consumption energy",
@@ -515,7 +515,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:home-battery",
         value_fn=lambda data: data.get("planned_self_consumption_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="planned_battery_export_energy",
         translation_key="planned_battery_export_energy",
         name="Planned battery export energy",
@@ -524,7 +524,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:transmission-tower-export",
         value_fn=lambda data: data.get("planned_grid_export_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="forecast_load_energy",
         translation_key="forecast_load_energy",
         name="Forecast load energy",
@@ -533,7 +533,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:home-analytics",
         value_fn=lambda data: data.get("forecast_load_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="forecast_solar_energy",
         translation_key="forecast_solar_energy",
         name="Forecast solar energy",
@@ -542,7 +542,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         icon="mdi:solar-power",
         value_fn=lambda data: data.get("forecast_solar_kwh"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="price_plan",
         translation_key="price_plan",
         name="Price plan",
@@ -550,7 +550,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         value_fn=lambda data: data.get("current_price"),
         extra_fn=_price_plan_attributes,
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="resolution_minutes",
         translation_key="resolution_minutes",
         name="Price resolution",
@@ -559,7 +559,7 @@ SENSORS: tuple[H3XArbitrageSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("resolution_minutes"),
     ),
-    H3XArbitrageSensorDescription(
+    H3XPredictiveDispatchSensorDescription(
         key="slots_available",
         translation_key="slots_available",
         name="Price slots available",
@@ -575,24 +575,24 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up sensors from a config entry."""
-    coordinator: H3XArbitrageCoordinator = entry.runtime_data
+    coordinator: H3XPredictiveDispatchCoordinator = entry.runtime_data
     async_add_entities(
-        H3XArbitrageSensor(coordinator, entry, description) for description in SENSORS
+        H3XPredictiveDispatchSensor(coordinator, entry, description) for description in SENSORS
     )
 
 
-class H3XArbitrageSensor(CoordinatorEntity[H3XArbitrageCoordinator], SensorEntity):
+class H3XPredictiveDispatchSensor(CoordinatorEntity[H3XPredictiveDispatchCoordinator], SensorEntity):
     """A diagnostic sensor for the arbitrage controller."""
 
     _unrecorded_attributes = UNRECORDED_PLAN_ATTRIBUTES
-    entity_description: H3XArbitrageSensorDescription
+    entity_description: H3XPredictiveDispatchSensorDescription
     _attr_has_entity_name = True
 
     def __init__(
         self,
-        coordinator: H3XArbitrageCoordinator,
+        coordinator: H3XPredictiveDispatchCoordinator,
         entry: ConfigEntry,
-        description: H3XArbitrageSensorDescription,
+        description: H3XPredictiveDispatchSensorDescription,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -601,9 +601,9 @@ class H3XArbitrageSensor(CoordinatorEntity[H3XArbitrageCoordinator], SensorEntit
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Pylontech H3X Energy Arbitrage",
+            "name": "Pylontech H3X Predictive Dispatch",
             "manufacturer": "Local",
-            "model": "Nord Pool Optimizer",
+            "model": "Predictive Energy Optimizer",
         }
 
     @property

@@ -27,19 +27,19 @@ from .const import (
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
 )
-from .coordinator import H3XArbitrageCoordinator
+from .coordinator import H3XPredictiveDispatchCoordinator
 
 
 @dataclass(frozen=True, kw_only=True)
-class H3XArbitrageSelectDescription(SelectEntityDescription):
+class H3XPredictiveDispatchSelectDescription(SelectEntityDescription):
     """Describe an arbitrage select control."""
 
     option_key: str
     options: tuple[str, ...]
 
 
-SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
-    H3XArbitrageSelectDescription(
+SELECTS: tuple[H3XPredictiveDispatchSelectDescription, ...] = (
+    H3XPredictiveDispatchSelectDescription(
         key="load_forecast_mode",
         translation_key="load_forecast_mode",
         name="Load forecast mode",
@@ -47,7 +47,7 @@ SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
         option_key=CONF_LOAD_FORECAST_MODE,
         options=LOAD_FORECAST_MODES,
     ),
-    H3XArbitrageSelectDescription(
+    H3XPredictiveDispatchSelectDescription(
         key="ev_forecast_mode",
         translation_key="ev_forecast_mode",
         name="EV forecast mode",
@@ -55,7 +55,7 @@ SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
         option_key=CONF_EV_FORECAST_MODE,
         options=EV_FORECAST_MODES,
     ),
-    H3XArbitrageSelectDescription(
+    H3XPredictiveDispatchSelectDescription(
         key="strategy_profile",
         translation_key="strategy_profile",
         name="Strategy profile",
@@ -63,7 +63,7 @@ SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
         option_key=CONF_STRATEGY_PROFILE,
         options=STRATEGY_PROFILES,
     ),
-    H3XArbitrageSelectDescription(
+    H3XPredictiveDispatchSelectDescription(
         key="terminal_soc_mode",
         translation_key="terminal_soc_mode",
         name="End-of-horizon SOC",
@@ -71,7 +71,7 @@ SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
         option_key=CONF_TERMINAL_SOC_MODE,
         options=TERMINAL_SOC_MODES,
     ),
-    H3XArbitrageSelectDescription(
+    H3XPredictiveDispatchSelectDescription(
         key="discharge_power_mode",
         translation_key="discharge_power_mode",
         name="Discharge power mode",
@@ -79,7 +79,7 @@ SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
         option_key=CONF_DISCHARGE_POWER_MODE,
         options=DISCHARGE_POWER_MODES,
     ),
-    H3XArbitrageSelectDescription(
+    H3XPredictiveDispatchSelectDescription(
         key="pv_orientation",
         translation_key="pv_orientation",
         name="PV orientation",
@@ -96,25 +96,25 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up select controls from a config entry."""
-    coordinator: H3XArbitrageCoordinator = entry.runtime_data
+    coordinator: H3XPredictiveDispatchCoordinator = entry.runtime_data
     async_add_entities(
-        H3XArbitrageSelect(coordinator, entry, description)
+        H3XPredictiveDispatchSelect(coordinator, entry, description)
         for description in SELECTS
     )
 
 
-class H3XArbitrageSelect(CoordinatorEntity[H3XArbitrageCoordinator], SelectEntity):
+class H3XPredictiveDispatchSelect(CoordinatorEntity[H3XPredictiveDispatchCoordinator], SelectEntity):
     """A runtime select control for the arbitrage optimizer."""
 
-    entity_description: H3XArbitrageSelectDescription
+    entity_description: H3XPredictiveDispatchSelectDescription
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(
         self,
-        coordinator: H3XArbitrageCoordinator,
+        coordinator: H3XPredictiveDispatchCoordinator,
         entry: ConfigEntry,
-        description: H3XArbitrageSelectDescription,
+        description: H3XPredictiveDispatchSelectDescription,
     ) -> None:
         """Initialize the select control."""
         super().__init__(coordinator)
@@ -123,9 +123,9 @@ class H3XArbitrageSelect(CoordinatorEntity[H3XArbitrageCoordinator], SelectEntit
         self._attr_options = list(description.options)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Pylontech H3X Energy Arbitrage",
+            "name": "Pylontech H3X Predictive Dispatch",
             "manufacturer": "Local",
-            "model": "Nord Pool Optimizer",
+            "model": "Predictive Energy Optimizer",
         }
 
     @property
