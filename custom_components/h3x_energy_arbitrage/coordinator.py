@@ -62,10 +62,19 @@ from .const import (
     CONF_PEAK_EXTRA_MARGIN,
     CONF_PEAK_POWER_W,
     CONF_POWER_REF_ENTITY,
+    CONF_PV_INVERTER_LIMIT_W,
+    CONF_PV_ORIENTATION,
+    CONF_PV_PANEL_COUNT,
+    CONF_PV_PANEL_WP,
     CONF_RESERVE_SOC,
     CONF_RESOLUTION,
     CONF_ROUND_TRIP_EFFICIENCY,
     CONF_SELL_COST_ADDER,
+    CONF_SHELLY_PHASE_A_POWER_ENTITY,
+    CONF_SHELLY_PHASE_B_POWER_ENTITY,
+    CONF_SHELLY_PHASE_C_POWER_ENTITY,
+    CONF_SHELLY_TOTAL_POWER_ENTITY,
+    CONF_SOLAR_POWER_ENTITY,
     CONF_SOC_ENTITY,
     CONF_STRATEGY_PROFILE,
     CONF_TERMINAL_SOC_MODE,
@@ -82,6 +91,7 @@ from .const import (
     NORDPOOL_CONF_AREAS,
     NORDPOOL_CONF_CURRENCY,
     NORDPOOL_DOMAIN,
+    PV_ORIENTATIONS,
     STRATEGY_PROFILE_SETTINGS,
 )
 
@@ -89,6 +99,16 @@ LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
 LAST_FULL_CHARGE_KEY = "last_periodic_full_charge_at"
 BATTERY_CAPACITY_ISSUE_ID = "battery_capacity_unconfirmed"
+PV_ORIENTATION_PROFILE: dict[str, tuple[float, float]] = {
+    "N": (0.20, 0.0),
+    "NE": (0.45, -4.0),
+    "E": (0.70, -3.0),
+    "SE": (0.90, -1.5),
+    "S": (1.00, 0.0),
+    "SW": (0.90, 1.5),
+    "W": (0.70, 3.0),
+    "NW": (0.45, 4.0),
+}
 
 
 @dataclass(slots=True)
@@ -127,6 +147,9 @@ class Decision:
     target_power_percent: float = 0.0
     soc: float | None = None
     load_power_w: float | None = None
+    solar_power_w: float | None = None
+    forecast_load_power_w: float | None = None
+    forecast_solar_power_w: float | None = None
     grid_import_power_w: float | None = None
     grid_import_average_power_w: float | None = None
     grid_charge_headroom_w: float | None = None
@@ -140,6 +163,12 @@ class Decision:
     estimated_today_value: float = 0.0
     planned_charge_kwh: float = 0.0
     planned_discharge_kwh: float = 0.0
+    planned_grid_charge_kwh: float = 0.0
+    planned_solar_charge_kwh: float = 0.0
+    planned_self_consumption_kwh: float = 0.0
+    planned_grid_export_kwh: float = 0.0
+    forecast_load_kwh: float = 0.0
+    forecast_solar_kwh: float = 0.0
     applied: bool = False
     apply_error: str | None = None
     updated_at: str = field(default_factory=lambda: dt_util.utcnow().isoformat())
@@ -155,8 +184,22 @@ class Decision:
         data["estimated_today_value"] = round(self.estimated_today_value, 4)
         data["planned_charge_kwh"] = round(self.planned_charge_kwh, 3)
         data["planned_discharge_kwh"] = round(self.planned_discharge_kwh, 3)
+        data["planned_grid_charge_kwh"] = round(self.planned_grid_charge_kwh, 3)
+        data["planned_solar_charge_kwh"] = round(self.planned_solar_charge_kwh, 3)
+        data["planned_self_consumption_kwh"] = round(
+            self.planned_self_consumption_kwh, 3
+        )
+        data["planned_grid_export_kwh"] = round(self.planned_grid_export_kwh, 3)
+        data["forecast_load_kwh"] = round(self.forecast_load_kwh, 3)
+        data["forecast_solar_kwh"] = round(self.forecast_solar_kwh, 3)
         if self.load_power_w is not None:
             data["load_power_w"] = round(self.load_power_w, 1)
+        if self.solar_power_w is not None:
+            data["solar_power_w"] = round(self.solar_power_w, 1)
+        if self.forecast_load_power_w is not None:
+            data["forecast_load_power_w"] = round(self.forecast_load_power_w, 1)
+        if self.forecast_solar_power_w is not None:
+            data["forecast_solar_power_w"] = round(self.forecast_solar_power_w, 1)
         if self.grid_import_power_w is not None:
             data["grid_import_power_w"] = round(self.grid_import_power_w, 1)
         if self.grid_import_average_power_w is not None:
@@ -259,6 +302,26 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             options[CONF_DISCHARGE_SPREAD_MAX_HOURS] = min(
                 max(float(options[CONF_DISCHARGE_SPREAD_MAX_HOURS]), 0.25),
                 12.0,
+            )
+        if CONF_PV_ORIENTATION in options:
+            orientation = str(options[CONF_PV_ORIENTATION]).upper()
+            options[CONF_PV_ORIENTATION] = (
+                orientation if orientation in PV_ORIENTATIONS else "S"
+            )
+        if CONF_PV_PANEL_COUNT in options:
+            options[CONF_PV_PANEL_COUNT] = min(
+                max(float(options[CONF_PV_PANEL_COUNT]), 0.0),
+                200.0,
+            )
+        if CONF_PV_PANEL_WP in options:
+            options[CONF_PV_PANEL_WP] = min(
+                max(float(options[CONF_PV_PANEL_WP]), 0.0),
+                1500.0,
+            )
+        if CONF_PV_INVERTER_LIMIT_W in options:
+            options[CONF_PV_INVERTER_LIMIT_W] = min(
+                max(float(options[CONF_PV_INVERTER_LIMIT_W]), 0.0),
+                50000.0,
             )
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -527,6 +590,14 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         interval_minutes = self._infer_resolution_minutes(future_slots)
+        load_power_w, load_source = self._home_load_power_w()
+        solar_power_w = self._positive_power_state_w(
+            str(self._option(CONF_SOLAR_POWER_ENTITY)).strip()
+        )
+        load_forecast_w = self._load_forecast_for_slots(future_slots, load_power_w)
+        solar_forecast_w, solar_forecast_source, solar_forecast_scale = (
+            self._solar_forecast_for_slots(future_slots, solar_power_w)
+        )
         decision = self._run_optimizer(
             future_slots=future_slots,
             current_energy=current_energy,
@@ -537,6 +608,8 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             discharge_allowed=discharge_allowed,
             usable_capacity_kwh=usable_capacity_kwh,
             periodic_full_charge_due=force_full_charge,
+            load_forecast_w=load_forecast_w,
+            solar_forecast_w=solar_forecast_w,
         )
 
         current_slot = future_slots[0]
@@ -547,8 +620,11 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.slots_available = len(future_slots)
         decision.next_slot_start = current_slot.start.isoformat()
         decision.next_slot_end = current_slot.end.isoformat()
-        decision.load_power_w = self._power_state_w(
-            str(self._option(CONF_LOAD_POWER_ENTITY))
+        decision.load_power_w = load_power_w
+        decision.solar_power_w = solar_power_w
+        decision.forecast_load_power_w = load_forecast_w[0] if load_forecast_w else None
+        decision.forecast_solar_power_w = (
+            solar_forecast_w[0] if solar_forecast_w else None
         )
         decision.grid_import_power_w = self._power_state_w(
             str(self._option(CONF_GRID_IMPORT_POWER_ENTITY))
@@ -576,6 +652,38 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
                 "grid_import_average_power_entity": str(
                     self._option(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY)
+                ),
+                "load_power_entity": str(self._option(CONF_LOAD_POWER_ENTITY)),
+                "home_load_power_source": load_source,
+                "shelly_total_power_entity": str(
+                    self._option(CONF_SHELLY_TOTAL_POWER_ENTITY)
+                ),
+                "shelly_phase_a_power_entity": str(
+                    self._option(CONF_SHELLY_PHASE_A_POWER_ENTITY)
+                ),
+                "shelly_phase_b_power_entity": str(
+                    self._option(CONF_SHELLY_PHASE_B_POWER_ENTITY)
+                ),
+                "shelly_phase_c_power_entity": str(
+                    self._option(CONF_SHELLY_PHASE_C_POWER_ENTITY)
+                ),
+                "solar_power_entity": str(self._option(CONF_SOLAR_POWER_ENTITY)),
+                "pv_orientation": str(self._option(CONF_PV_ORIENTATION)).upper(),
+                "pv_panel_count": float(self._option(CONF_PV_PANEL_COUNT)),
+                "pv_panel_wp": float(self._option(CONF_PV_PANEL_WP)),
+                "pv_inverter_limit_w": float(self._option(CONF_PV_INVERTER_LIMIT_W)),
+                "pv_peak_power_w": round(
+                    float(self._option(CONF_PV_PANEL_COUNT))
+                    * float(self._option(CONF_PV_PANEL_WP)),
+                    1,
+                ),
+                "solar_forecast_source": solar_forecast_source,
+                "solar_forecast_scale": round(solar_forecast_scale, 3),
+                "load_forecast": self._serialize_power_forecast(
+                    future_slots, load_forecast_w
+                ),
+                "solar_forecast": self._serialize_power_forecast(
+                    future_slots, solar_forecast_w
                 ),
                 **periodic_full_charge,
                 "discharge_power_mode": str(self._option(CONF_DISCHARGE_POWER_MODE)),
@@ -780,6 +888,11 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "target_power_w": row.get("target_power_w"),
             "value": row.get("value"),
             "price": row.get("price"),
+            "grid_charge_kwh": row.get("grid_charge_kwh"),
+            "solar_charge_kwh": row.get("solar_charge_kwh"),
+            "self_consumption_kwh": row.get("self_consumption_kwh"),
+            "battery_export_kwh": row.get("battery_export_kwh"),
+            "net_grid_with_battery_w": row.get("net_grid_with_battery_w"),
         }
 
     def _battery_capacity_attributes(
@@ -1036,6 +1149,163 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "periodic_full_charge_next_due_at": next_due_at,
         }
 
+    def _home_load_power_w(self) -> tuple[float | None, str]:
+        """Resolve the preferred house load power reading."""
+        total_entity = str(self._option(CONF_SHELLY_TOTAL_POWER_ENTITY)).strip()
+        total_power = self._positive_power_state_w(total_entity)
+        if total_power is not None:
+            return total_power, f"shelly_total:{total_entity}"
+
+        phase_entities = [
+            str(self._option(key)).strip()
+            for key in (
+                CONF_SHELLY_PHASE_A_POWER_ENTITY,
+                CONF_SHELLY_PHASE_B_POWER_ENTITY,
+                CONF_SHELLY_PHASE_C_POWER_ENTITY,
+            )
+            if str(self._option(key)).strip()
+        ]
+        phase_values = [self._positive_power_state_w(entity) for entity in phase_entities]
+        available_phases = [value for value in phase_values if value is not None]
+        if available_phases:
+            return sum(available_phases), "shelly_phases:" + ",".join(phase_entities)
+
+        fallback_entity = str(self._option(CONF_LOAD_POWER_ENTITY)).strip()
+        fallback_power = self._positive_power_state_w(fallback_entity)
+        if fallback_power is not None:
+            return fallback_power, f"fallback:{fallback_entity}"
+
+        return None, "unavailable"
+
+    def _positive_power_state_w(self, entity_id: str | None) -> float | None:
+        """Read a power entity and clamp impossible negative consumption to zero."""
+        value = self._power_state_w(entity_id)
+        if value is None:
+            return None
+        return max(value, 0.0)
+
+    @staticmethod
+    def _load_forecast_for_slots(
+        future_slots: list[PriceSlot],
+        current_load_w: float | None,
+    ) -> list[float]:
+        """Return a stable load forecast aligned to price slots."""
+        load_w = max(current_load_w or 0.0, 0.0)
+        return [load_w for _slot in future_slots]
+
+    def _solar_forecast_for_slots(
+        self,
+        future_slots: list[PriceSlot],
+        current_solar_power_w: float | None,
+    ) -> tuple[list[float], str, float]:
+        """Return a simple orientation-based PV forecast aligned to price slots."""
+        raw_forecast = [self._solar_power_model_w(slot) for slot in future_slots]
+        panel_count = float(self._option(CONF_PV_PANEL_COUNT))
+        panel_wp = float(self._option(CONF_PV_PANEL_WP))
+        solar_entity = str(self._option(CONF_SOLAR_POWER_ENTITY)).strip()
+        if panel_count <= 0 or panel_wp <= 0:
+            return [0.0 for _slot in future_slots], "disabled_panel_config", 1.0
+
+        scale = 1.0
+        source = "panel_model"
+        measured_w = max(current_solar_power_w or 0.0, 0.0)
+        current_model_w = raw_forecast[0] if raw_forecast else 0.0
+        if solar_entity and measured_w > 50.0 and current_model_w > 50.0:
+            scale = min(max(measured_w / current_model_w, 0.25), 1.5)
+            source = "panel_model_calibrated_by_sma_power"
+
+        limit_w = float(self._option(CONF_PV_INVERTER_LIMIT_W))
+        scaled = [
+            min(power_w * scale, limit_w) if limit_w > 0 else power_w * scale
+            for power_w in raw_forecast
+        ]
+        if solar_entity and scaled and current_solar_power_w is not None:
+            scaled[0] = measured_w
+        return [round(max(power_w, 0.0), 1) for power_w in scaled], source, scale
+
+    def _solar_power_model_w(self, slot: PriceSlot) -> float:
+        """Estimate PV power for a slot from panel size, orientation, and daylight."""
+        panel_count = float(self._option(CONF_PV_PANEL_COUNT))
+        panel_wp = float(self._option(CONF_PV_PANEL_WP))
+        peak_w = panel_count * panel_wp
+        if peak_w <= 0:
+            return 0.0
+
+        orientation = str(self._option(CONF_PV_ORIENTATION)).upper()
+        orientation_factor, peak_shift_h = PV_ORIENTATION_PROFILE.get(
+            orientation,
+            PV_ORIENTATION_PROFILE["S"],
+        )
+        midpoint = dt_util.as_local(slot.start + (slot.end - slot.start) / 2)
+        daylight_h = self._daylight_hours(midpoint)
+        if daylight_h <= 0:
+            return 0.0
+
+        peak_hour = self._solar_noon_hour(midpoint) + peak_shift_h
+        local_hour = (
+            midpoint.hour
+            + midpoint.minute / 60
+            + midpoint.second / 3600
+            + midpoint.microsecond / 3_600_000_000
+        )
+        half_day_h = max(daylight_h / 2, 1.0)
+        normalized_distance = abs(local_hour - peak_hour) / half_day_h
+        if normalized_distance >= 1.0:
+            return 0.0
+
+        daylight_shape = math.cos(normalized_distance * math.pi / 2) ** 1.6
+        power_w = peak_w * orientation_factor * daylight_shape
+        inverter_limit = float(self._option(CONF_PV_INVERTER_LIMIT_W))
+        return min(power_w, inverter_limit) if inverter_limit > 0 else power_w
+
+    def _daylight_hours(self, local_time: datetime) -> float:
+        """Approximate daylight hours for the Home Assistant latitude."""
+        latitude = float(getattr(self.hass.config, "latitude", 0.0) or 0.0)
+        latitude = min(max(latitude, -66.0), 66.0)
+        lat_rad = math.radians(latitude)
+        day_of_year = local_time.timetuple().tm_yday
+        declination = math.radians(23.44) * math.sin(
+            2 * math.pi * (284 + day_of_year) / 365
+        )
+        cos_hour_angle = -math.tan(lat_rad) * math.tan(declination)
+        if cos_hour_angle >= 1:
+            return 0.0
+        if cos_hour_angle <= -1:
+            return 24.0
+        hour_angle = math.acos(cos_hour_angle)
+        return min(max(24 * hour_angle / math.pi, 0.0), 24.0)
+
+    def _solar_noon_hour(self, local_time: datetime) -> float:
+        """Approximate true solar noon in local clock hours."""
+        longitude = float(getattr(self.hass.config, "longitude", 0.0) or 0.0)
+        utc_offset = local_time.utcoffset()
+        offset_h = utc_offset.total_seconds() / 3600 if utc_offset else 0.0
+        standard_meridian = offset_h * 15
+        return 12.0 + (standard_meridian - longitude) / 15
+
+    def _serialize_power_forecast(
+        self,
+        slots: list[PriceSlot],
+        power_values_w: list[float],
+    ) -> list[dict[str, Any]]:
+        """Serialize a power forecast for dashboard attributes."""
+        serialized: list[dict[str, Any]] = []
+        now = dt_util.utcnow()
+        for index, slot in enumerate(slots):
+            power_w = power_values_w[index] if index < len(power_values_w) else 0.0
+            duration_h = self._slot_duration_hours(
+                slot,
+                now if index == 0 else None,
+            )
+            serialized.append(
+                {
+                    **self._serialize_price_slot(slot),
+                    "power_w": round(max(power_w, 0.0), 1),
+                    "energy_kwh": round(max(power_w, 0.0) * duration_h / 1000, 3),
+                }
+            )
+        return serialized
+
     def _run_optimizer(
         self,
         future_slots: list[PriceSlot],
@@ -1047,13 +1317,20 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         discharge_allowed: bool,
         usable_capacity_kwh: float,
         periodic_full_charge_due: bool = False,
+        load_forecast_w: list[float] | None = None,
+        solar_forecast_w: list[float] | None = None,
     ) -> Decision:
         """Run a dynamic-programming arbitrage optimizer."""
         now = dt_util.utcnow()
+        load_forecast_w = load_forecast_w or [0.0 for _slot in future_slots]
+        solar_forecast_w = solar_forecast_w or [0.0 for _slot in future_slots]
         capacity_range = max_energy - min_energy
         step_kwh = max(0.25, capacity_range / 100)
         level_count = max(int(round(capacity_range / step_kwh)), 1)
-        levels = [min_energy + index * capacity_range / level_count for index in range(level_count + 1)]
+        levels = [
+            min_energy + index * capacity_range / level_count
+            for index in range(level_count + 1)
+        ]
         initial_idx = min(
             range(len(levels)),
             key=lambda index: abs(levels[index] - current_energy),
@@ -1077,7 +1354,10 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         for slot_index in range(len(future_slots) - 1, -1, -1):
             slot = future_slots[slot_index]
-            duration_h = self._slot_duration_hours(slot, now if slot_index == 0 else None)
+            duration_h = self._slot_duration_hours(
+                slot,
+                now if slot_index == 0 else None,
+            )
             charge_pmax_w = self._slot_power_limit(
                 future_slots,
                 "charge",
@@ -1092,6 +1372,22 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             max_discharge_delta = discharge_pmax_w * duration_h / 1000 / discharge_eff
             buy_price = slot.price + buy_adder
             sell_price = slot.price - sell_adder
+            load_kwh = self._power_to_energy_kwh(
+                load_forecast_w,
+                slot_index,
+                duration_h,
+            )
+            solar_kwh = self._power_to_energy_kwh(
+                solar_forecast_w,
+                slot_index,
+                duration_h,
+            )
+            baseline_net_kwh = load_kwh - solar_kwh
+            baseline_cost = self._net_grid_cost(
+                baseline_net_kwh,
+                buy_price,
+                sell_price,
+            )
 
             next_values: dict[int, float] = {}
             for idx, energy in enumerate(levels):
@@ -1105,7 +1401,13 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if delta > max_charge_delta + step_kwh / 2:
                             break
                         ac_kwh = delta / charge_eff
-                        reward = -ac_kwh * buy_price
+                        candidate_net_kwh = baseline_net_kwh + ac_kwh
+                        candidate_cost = self._net_grid_cost(
+                            candidate_net_kwh,
+                            buy_price,
+                            sell_price,
+                        )
+                        reward = baseline_cost - candidate_cost
                         candidate = reward + values[next_idx]
                         if candidate > best_value:
                             best_value = candidate
@@ -1118,7 +1420,14 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if delta > max_discharge_delta + step_kwh / 2:
                             break
                         ac_kwh = delta * discharge_eff
-                        reward = ac_kwh * (sell_price - required_margin)
+                        candidate_net_kwh = baseline_net_kwh - ac_kwh
+                        candidate_cost = self._net_grid_cost(
+                            candidate_net_kwh,
+                            buy_price,
+                            sell_price,
+                        )
+                        reward = baseline_cost - candidate_cost
+                        reward -= ac_kwh * required_margin
                         candidate = reward + values[next_idx]
                         if candidate > best_value:
                             best_value = candidate
@@ -1133,21 +1442,24 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             values = next_values
 
         plan_value = values.get(initial_idx, 0.0)
-        plan_slots, planned_charge_kwh, planned_discharge_kwh, today_value = (
-            self._build_plan_summary(
-                future_slots=future_slots,
-                policy=policy,
-                levels=levels,
-                initial_idx=initial_idx,
-                step_kwh=step_kwh,
-                charge_eff=charge_eff,
-                discharge_eff=discharge_eff,
-                buy_adder=buy_adder,
-                sell_adder=sell_adder,
-                required_margin=required_margin,
-                now=now,
-            )
+        plan_slots, plan_totals = self._build_plan_summary(
+            future_slots=future_slots,
+            policy=policy,
+            levels=levels,
+            initial_idx=initial_idx,
+            step_kwh=step_kwh,
+            charge_eff=charge_eff,
+            discharge_eff=discharge_eff,
+            buy_adder=buy_adder,
+            sell_adder=sell_adder,
+            required_margin=required_margin,
+            now=now,
+            load_forecast_w=load_forecast_w,
+            solar_forecast_w=solar_forecast_w,
         )
+        planned_charge_kwh = plan_totals["planned_charge_kwh"]
+        planned_discharge_kwh = plan_totals["planned_discharge_kwh"]
+        today_value = plan_totals["estimated_today_value"]
 
         next_idx = policy.get((0, initial_idx), initial_idx)
         delta = levels[next_idx] - levels[initial_idx]
@@ -1164,6 +1476,14 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 estimated_today_value=today_value,
                 planned_charge_kwh=planned_charge_kwh,
                 planned_discharge_kwh=planned_discharge_kwh,
+                planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
+                planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
+                planned_self_consumption_kwh=plan_totals[
+                    "planned_self_consumption_kwh"
+                ],
+                planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
+                forecast_load_kwh=plan_totals["forecast_load_kwh"],
+                forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
                 attributes={"dispatch_plan": plan_slots},
             )
 
@@ -1172,6 +1492,31 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             reason = "current slot is economical for grid charging"
             if periodic_full_charge_due:
                 reason = "periodic full charge due; charging toward top-balance target"
+            first_slot = plan_slots[0] if plan_slots else {}
+            grid_charge_kwh = float(first_slot.get("grid_charge_kwh") or 0.0)
+            solar_charge_kwh = float(first_slot.get("solar_charge_kwh") or 0.0)
+            if grid_charge_kwh <= 0.05 and solar_charge_kwh > 0.05:
+                return Decision(
+                    action="idle",
+                    reason=(
+                        "solar surplus is expected; allow self-consumption mode to "
+                        "charge instead of forcing grid charge"
+                    ),
+                    estimated_first_slot_value=first_rewards.get((0, initial_idx), 0.0),
+                    estimated_plan_value=plan_value,
+                    estimated_today_value=today_value,
+                    planned_charge_kwh=planned_charge_kwh,
+                    planned_discharge_kwh=planned_discharge_kwh,
+                    planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
+                    planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
+                    planned_self_consumption_kwh=plan_totals[
+                        "planned_self_consumption_kwh"
+                    ],
+                    planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
+                    forecast_load_kwh=plan_totals["forecast_load_kwh"],
+                    forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
+                    attributes={"dispatch_plan": plan_slots},
+                )
             return Decision(
                 action="charge",
                 reason=reason,
@@ -1188,11 +1533,19 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 estimated_today_value=today_value,
                 planned_charge_kwh=planned_charge_kwh,
                 planned_discharge_kwh=planned_discharge_kwh,
+                planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
+                planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
+                planned_self_consumption_kwh=plan_totals[
+                    "planned_self_consumption_kwh"
+                ],
+                planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
+                forecast_load_kwh=plan_totals["forecast_load_kwh"],
+                forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
                 attributes={"dispatch_plan": plan_slots},
             )
 
         target_power = abs(delta) * discharge_eff / duration_h * 1000
-        reason = "current slot is economical for grid export"
+        reason = "current slot is economical for battery discharge"
         if periodic_full_charge_due:
             reason = "periodic full charge due; export remains economical before recharge"
         return Decision(
@@ -1211,6 +1564,12 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             estimated_today_value=today_value,
             planned_charge_kwh=planned_charge_kwh,
             planned_discharge_kwh=planned_discharge_kwh,
+            planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
+            planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
+            planned_self_consumption_kwh=plan_totals["planned_self_consumption_kwh"],
+            planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
+            forecast_load_kwh=plan_totals["forecast_load_kwh"],
+            forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
             attributes={"dispatch_plan": plan_slots},
         )
 
@@ -1227,14 +1586,24 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         sell_adder: float,
         required_margin: float,
         now: datetime,
-    ) -> tuple[list[dict[str, Any]], float, float, float]:
+        load_forecast_w: list[float],
+        solar_forecast_w: list[float],
+    ) -> tuple[list[dict[str, Any]], dict[str, float]]:
         """Reconstruct the selected dispatch path for dashboard diagnostics."""
         local_today = dt_util.now().date()
         idx = initial_idx
         plan_slots: list[dict[str, Any]] = []
-        planned_charge_kwh = 0.0
-        planned_discharge_kwh = 0.0
-        today_value = 0.0
+        totals = {
+            "planned_charge_kwh": 0.0,
+            "planned_discharge_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "planned_solar_charge_kwh": 0.0,
+            "planned_self_consumption_kwh": 0.0,
+            "planned_grid_export_kwh": 0.0,
+            "forecast_load_kwh": 0.0,
+            "forecast_solar_kwh": 0.0,
+            "estimated_today_value": 0.0,
+        }
 
         for slot_index, slot in enumerate(future_slots):
             next_idx = policy.get((slot_index, idx), idx)
@@ -1246,25 +1615,79 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             target_power_w = 0.0
             grid_energy_kwh = 0.0
             value = 0.0
+            grid_charge_kwh = 0.0
+            solar_charge_kwh = 0.0
+            self_consumption_kwh = 0.0
+            battery_export_kwh = 0.0
+            buy_price = slot.price + buy_adder
+            sell_price = slot.price - sell_adder
+            load_kwh = self._power_to_energy_kwh(
+                load_forecast_w,
+                slot_index,
+                duration_h,
+            )
+            solar_kwh = self._power_to_energy_kwh(
+                solar_forecast_w,
+                slot_index,
+                duration_h,
+            )
+            baseline_net_kwh = load_kwh - solar_kwh
+            net_grid_kwh = baseline_net_kwh
+            baseline_cost = self._net_grid_cost(
+                baseline_net_kwh,
+                buy_price,
+                sell_price,
+            )
+            totals["forecast_load_kwh"] += load_kwh
+            totals["forecast_solar_kwh"] += solar_kwh
 
             if abs(delta) >= step_kwh / 2 and duration_h > 0:
                 if delta > 0:
                     action = "charge"
                     grid_energy_kwh = delta / charge_eff
                     target_power_w = grid_energy_kwh / duration_h * 1000
-                    planned_charge_kwh += grid_energy_kwh
-                    value = -grid_energy_kwh * (slot.price + buy_adder)
+                    solar_surplus_kwh = max(-baseline_net_kwh, 0.0)
+                    solar_charge_kwh = min(grid_energy_kwh, solar_surplus_kwh)
+                    grid_charge_kwh = max(grid_energy_kwh - solar_charge_kwh, 0.0)
+                    net_grid_kwh = baseline_net_kwh + grid_energy_kwh
+                    value = baseline_cost - self._net_grid_cost(
+                        net_grid_kwh,
+                        buy_price,
+                        sell_price,
+                    )
+                    totals["planned_charge_kwh"] += grid_energy_kwh
+                    totals["planned_grid_charge_kwh"] += grid_charge_kwh
+                    totals["planned_solar_charge_kwh"] += solar_charge_kwh
                 else:
                     action = "discharge"
                     grid_energy_kwh = abs(delta) * discharge_eff
                     target_power_w = grid_energy_kwh / duration_h * 1000
-                    planned_discharge_kwh += grid_energy_kwh
-                    value = grid_energy_kwh * (
-                        slot.price - sell_adder - required_margin
+                    home_import_kwh = max(baseline_net_kwh, 0.0)
+                    self_consumption_kwh = min(grid_energy_kwh, home_import_kwh)
+                    battery_export_kwh = max(
+                        grid_energy_kwh - self_consumption_kwh,
+                        0.0,
                     )
+                    net_grid_kwh = baseline_net_kwh - grid_energy_kwh
+                    value = baseline_cost - self._net_grid_cost(
+                        net_grid_kwh,
+                        buy_price,
+                        sell_price,
+                    )
+                    value -= grid_energy_kwh * required_margin
+                    totals["planned_discharge_kwh"] += grid_energy_kwh
+                    totals["planned_self_consumption_kwh"] += self_consumption_kwh
+                    totals["planned_grid_export_kwh"] += battery_export_kwh
 
             if dt_util.as_local(slot.start).date() == local_today:
-                today_value += value
+                totals["estimated_today_value"] += value
+
+            net_grid_without_w = (
+                baseline_net_kwh / duration_h * 1000 if duration_h > 0 else 0.0
+            )
+            net_grid_with_w = (
+                net_grid_kwh / duration_h * 1000 if duration_h > 0 else 0.0
+            )
 
             plan_slots.append(
                 {
@@ -1273,11 +1696,51 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "target_power_w": round(target_power_w, 1),
                     "energy_kwh": round(grid_energy_kwh, 3),
                     "value": round(value, 4),
+                    "load_power_w": round(
+                        load_forecast_w[slot_index]
+                        if slot_index < len(load_forecast_w)
+                        else 0.0,
+                        1,
+                    ),
+                    "solar_power_w": round(
+                        solar_forecast_w[slot_index]
+                        if slot_index < len(solar_forecast_w)
+                        else 0.0,
+                        1,
+                    ),
+                    "net_grid_without_battery_w": round(net_grid_without_w, 1),
+                    "net_grid_with_battery_w": round(net_grid_with_w, 1),
+                    "baseline_grid_import_kwh": round(max(baseline_net_kwh, 0.0), 3),
+                    "baseline_grid_export_kwh": round(max(-baseline_net_kwh, 0.0), 3),
+                    "grid_import_kwh": round(max(net_grid_kwh, 0.0), 3),
+                    "grid_export_kwh": round(max(-net_grid_kwh, 0.0), 3),
+                    "grid_charge_kwh": round(grid_charge_kwh, 3),
+                    "solar_charge_kwh": round(solar_charge_kwh, 3),
+                    "self_consumption_kwh": round(self_consumption_kwh, 3),
+                    "battery_export_kwh": round(battery_export_kwh, 3),
                 }
             )
             idx = next_idx
 
-        return plan_slots, planned_charge_kwh, planned_discharge_kwh, today_value
+        return plan_slots, totals
+
+    @staticmethod
+    def _power_to_energy_kwh(
+        power_values_w: list[float],
+        index: int,
+        duration_h: float,
+    ) -> float:
+        """Convert one forecast power point into slot energy."""
+        if index >= len(power_values_w) or duration_h <= 0:
+            return 0.0
+        return max(power_values_w[index], 0.0) * duration_h / 1000
+
+    @staticmethod
+    def _net_grid_cost(net_grid_kwh: float, buy_price: float, sell_price: float) -> float:
+        """Return import cost minus export revenue for a net grid energy value."""
+        if net_grid_kwh >= 0:
+            return net_grid_kwh * buy_price
+        return net_grid_kwh * sell_price
 
     def _terminal_energy(
         self, current_energy: float, min_energy: float, max_energy: float

@@ -72,6 +72,15 @@ def main() -> None:
         "discharge_spread_max_hours",
         "grid_import_power_entity",
         "grid_import_average_power_entity",
+        "shelly_total_power_entity",
+        "shelly_phase_a_power_entity",
+        "shelly_phase_b_power_entity",
+        "shelly_phase_c_power_entity",
+        "solar_power_entity",
+        "pv_orientation",
+        "pv_panel_count",
+        "pv_panel_wp",
+        "pv_inverter_limit_w",
         "battery_module_count",
         "battery_module_count_entity",
         "battery_system_capacity_entity",
@@ -90,6 +99,9 @@ def main() -> None:
         "_battery_capacity_attributes",
         "_shape_discharge_decision",
         "_battery_configuration",
+        "_home_load_power_w",
+        "_solar_forecast_for_slots",
+        "_net_grid_cost",
     ):
         if token not in coordinator_source and token not in const_source:
             raise AssertionError(f"{token} missing from control wiring")
@@ -125,8 +137,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.6.4"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.6.4")
+    if '"version": "0.7.0"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.7.0")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
         raise AssertionError("stale Nord Pool config entries must fall back to auto")
     if "\"get_prices_for_date\"" not in coordinator_source:
@@ -135,6 +147,8 @@ def main() -> None:
         raise AssertionError("setup defaults must not persist a volatile Nord Pool entry id")
     if 'key="discharge_power_mode"' not in read(INTEGRATION / "select.py"):
         raise AssertionError("discharge power mode select is missing")
+    if 'key="pv_orientation"' not in read(INTEGRATION / "select.py"):
+        raise AssertionError("PV orientation select is missing")
     number_source = read(INTEGRATION / "number.py")
     for token in (
         "battery_module_count",
@@ -142,6 +156,9 @@ def main() -> None:
         "discharge_spread_max_hours",
         "max_charge_c_rate",
         "max_discharge_c_rate",
+        "pv_panel_count",
+        "pv_panel_wp",
+        "pv_inverter_limit",
     ):
         if token not in number_source:
             raise AssertionError(f"{token} number control is missing")
@@ -153,6 +170,14 @@ def main() -> None:
         'key="next_discharge_slot"',
         'key="periodic_full_charge_slot"',
         'key="price_trend"',
+        'key="home_load_power"',
+        'key="solar_power"',
+        'key="forecast_load_power"',
+        'key="forecast_solar_power"',
+        'key="planned_grid_charge_energy"',
+        'key="planned_solar_charge_energy"',
+        'key="planned_self_consumption_energy"',
+        'key="planned_battery_export_energy"',
     ):
         if token not in sensor_source:
             raise AssertionError(f"{token} sensor is missing")

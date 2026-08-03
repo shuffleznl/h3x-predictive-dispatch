@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -18,6 +18,9 @@ from .const import (
     CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE,
     CONF_MAX_CHARGE_C_RATE,
     CONF_MAX_DISCHARGE_C_RATE,
+    CONF_PV_INVERTER_LIMIT_W,
+    CONF_PV_PANEL_COUNT,
+    CONF_PV_PANEL_WP,
     FORCE_H3_MAX_MODULES,
     FORCE_H3_MIN_MODULES,
     CONF_PERIODIC_FULL_CHARGE_INTERVAL_DAYS,
@@ -120,6 +123,38 @@ NUMBERS: tuple[H3XArbitrageNumberDescription, ...] = (
         native_max_value=0.5,
         native_step=0.01,
         option_key=CONF_MAX_DISCHARGE_C_RATE,
+    ),
+    H3XArbitrageNumberDescription(
+        key="pv_panel_count",
+        translation_key="pv_panel_count",
+        name="PV panel count",
+        icon="mdi:solar-panel-large",
+        native_min_value=0.0,
+        native_max_value=200.0,
+        native_step=1.0,
+        option_key=CONF_PV_PANEL_COUNT,
+    ),
+    H3XArbitrageNumberDescription(
+        key="pv_panel_wp",
+        translation_key="pv_panel_wp",
+        name="PV panel Wp rating",
+        icon="mdi:solar-power",
+        native_min_value=0.0,
+        native_max_value=1500.0,
+        native_step=5.0,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        option_key=CONF_PV_PANEL_WP,
+    ),
+    H3XArbitrageNumberDescription(
+        key="pv_inverter_limit",
+        translation_key="pv_inverter_limit",
+        name="PV inverter limit",
+        icon="mdi:current-ac",
+        native_min_value=0.0,
+        native_max_value=50000.0,
+        native_step=50.0,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        option_key=CONF_PV_INVERTER_LIMIT_W,
     ),
 )
 

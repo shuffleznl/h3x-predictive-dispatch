@@ -108,7 +108,13 @@ def main() -> None:
         if token in decision_source:
             raise AssertionError(f"decision sensor must not expose {token}")
 
-    for token in ("price_trend", "planned_charge_slots", "planned_discharge_slots"):
+    for token in (
+        "price_trend",
+        "load_forecast",
+        "solar_forecast",
+        "planned_charge_slots",
+        "planned_discharge_slots",
+    ):
         if token not in source:
             raise AssertionError(f"{token} must be excluded from recorder attributes")
 

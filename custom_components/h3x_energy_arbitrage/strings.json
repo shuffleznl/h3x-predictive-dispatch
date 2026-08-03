@@ -15,8 +15,17 @@
           "power_ref_entity": "H3X charge/discharge power reference entity",
           "soc_entity": "Battery SOC sensor entity",
           "load_power_entity": "House load power sensor entity",
+          "shelly_total_power_entity": "Shelly Pro 3EM total home power sensor entity",
+          "shelly_phase_a_power_entity": "Shelly Pro 3EM phase A power sensor entity",
+          "shelly_phase_b_power_entity": "Shelly Pro 3EM phase B power sensor entity",
+          "shelly_phase_c_power_entity": "Shelly Pro 3EM phase C power sensor entity",
           "grid_import_power_entity": "Real-time grid import power sensor entity",
           "grid_import_average_power_entity": "Averaged grid import power sensor entity",
+          "solar_power_entity": "SMA Sunny Boy current PV power sensor entity",
+          "pv_orientation": "PV orientation",
+          "pv_panel_count": "PV panel count",
+          "pv_panel_wp": "PV panel Wp rating",
+          "pv_inverter_limit_w": "PV inverter output limit W",
           "battery_module_count_entity": "Battery module count sensor entity",
           "battery_system_capacity_entity": "Battery system capacity sensor entity",
           "battery_usable_capacity_entity": "Battery usable capacity sensor entity",
@@ -87,8 +96,17 @@
           "power_ref_entity": "H3X charge/discharge power reference entity",
           "soc_entity": "Battery SOC sensor entity",
           "load_power_entity": "House load power sensor entity",
+          "shelly_total_power_entity": "Shelly Pro 3EM total home power sensor entity",
+          "shelly_phase_a_power_entity": "Shelly Pro 3EM phase A power sensor entity",
+          "shelly_phase_b_power_entity": "Shelly Pro 3EM phase B power sensor entity",
+          "shelly_phase_c_power_entity": "Shelly Pro 3EM phase C power sensor entity",
           "grid_import_power_entity": "Real-time grid import power sensor entity",
           "grid_import_average_power_entity": "Averaged grid import power sensor entity",
+          "solar_power_entity": "SMA Sunny Boy current PV power sensor entity",
+          "pv_orientation": "PV orientation",
+          "pv_panel_count": "PV panel count",
+          "pv_panel_wp": "PV panel Wp rating",
+          "pv_inverter_limit_w": "PV inverter output limit W",
           "battery_module_count_entity": "Battery module count sensor entity",
           "battery_system_capacity_entity": "Battery system capacity sensor entity",
           "battery_usable_capacity_entity": "Battery usable capacity sensor entity",
@@ -154,6 +172,18 @@
       "target_c_rate": {
         "name": "Target C-rate"
       },
+      "home_load_power": {
+        "name": "Home load power"
+      },
+      "solar_power": {
+        "name": "Solar power"
+      },
+      "forecast_load_power": {
+        "name": "Forecast load power"
+      },
+      "forecast_solar_power": {
+        "name": "Forecast solar power"
+      },
       "next_charge_slot": {
         "name": "Next charge slot"
       },
@@ -187,6 +217,24 @@
       "planned_discharge_energy": {
         "name": "Planned discharge energy"
       },
+      "planned_grid_charge_energy": {
+        "name": "Planned grid charge energy"
+      },
+      "planned_solar_charge_energy": {
+        "name": "Planned solar charge energy"
+      },
+      "planned_self_consumption_energy": {
+        "name": "Planned self-consumption energy"
+      },
+      "planned_battery_export_energy": {
+        "name": "Planned battery export energy"
+      },
+      "forecast_load_energy": {
+        "name": "Forecast load energy"
+      },
+      "forecast_solar_energy": {
+        "name": "Forecast solar energy"
+      },
       "price_plan": {
         "name": "Price plan"
       },
@@ -206,6 +254,9 @@
       },
       "discharge_power_mode": {
         "name": "Discharge power mode"
+      },
+      "pv_orientation": {
+        "name": "PV orientation"
       }
     },
     "switch": {
@@ -237,6 +288,15 @@
       },
       "max_discharge_c_rate": {
         "name": "Maximum discharge C-rate"
+      },
+      "pv_panel_count": {
+        "name": "PV panel count"
+      },
+      "pv_panel_wp": {
+        "name": "PV panel Wp rating"
+      },
+      "pv_inverter_limit": {
+        "name": "PV inverter limit"
       }
     }
   },

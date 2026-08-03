@@ -54,10 +54,19 @@ from .const import (
     CONF_PEAK_EXTRA_MARGIN,
     CONF_PEAK_POWER_W,
     CONF_POWER_REF_ENTITY,
+    CONF_PV_INVERTER_LIMIT_W,
+    CONF_PV_ORIENTATION,
+    CONF_PV_PANEL_COUNT,
+    CONF_PV_PANEL_WP,
     CONF_RESERVE_SOC,
     CONF_RESOLUTION,
     CONF_ROUND_TRIP_EFFICIENCY,
     CONF_SELL_COST_ADDER,
+    CONF_SHELLY_PHASE_A_POWER_ENTITY,
+    CONF_SHELLY_PHASE_B_POWER_ENTITY,
+    CONF_SHELLY_PHASE_C_POWER_ENTITY,
+    CONF_SHELLY_TOTAL_POWER_ENTITY,
+    CONF_SOLAR_POWER_ENTITY,
     CONF_SOC_ENTITY,
     CONF_STRATEGY_PROFILE,
     CONF_TERMINAL_SOC_MODE,
@@ -77,6 +86,7 @@ from .const import (
     NORDPOOL_CONF_AREAS,
     NORDPOOL_CONF_CURRENCY,
     NORDPOOL_DOMAIN,
+    PV_ORIENTATIONS,
     RESOLUTIONS,
     STRATEGY_PROFILE_SETTINGS,
     STRATEGY_PROFILES,
@@ -184,6 +194,22 @@ def _schema(
                 CONF_LOAD_POWER_ENTITY, default=data[CONF_LOAD_POWER_ENTITY]
             ): str,
             vol.Optional(
+                CONF_SHELLY_TOTAL_POWER_ENTITY,
+                default=data[CONF_SHELLY_TOTAL_POWER_ENTITY],
+            ): str,
+            vol.Optional(
+                CONF_SHELLY_PHASE_A_POWER_ENTITY,
+                default=data[CONF_SHELLY_PHASE_A_POWER_ENTITY],
+            ): str,
+            vol.Optional(
+                CONF_SHELLY_PHASE_B_POWER_ENTITY,
+                default=data[CONF_SHELLY_PHASE_B_POWER_ENTITY],
+            ): str,
+            vol.Optional(
+                CONF_SHELLY_PHASE_C_POWER_ENTITY,
+                default=data[CONF_SHELLY_PHASE_C_POWER_ENTITY],
+            ): str,
+            vol.Optional(
                 CONF_GRID_IMPORT_POWER_ENTITY,
                 default=data[CONF_GRID_IMPORT_POWER_ENTITY],
             ): str,
@@ -191,6 +217,22 @@ def _schema(
                 CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
                 default=data[CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY],
             ): str,
+            vol.Optional(
+                CONF_SOLAR_POWER_ENTITY, default=data[CONF_SOLAR_POWER_ENTITY]
+            ): str,
+            vol.Optional(
+                CONF_PV_ORIENTATION, default=data[CONF_PV_ORIENTATION]
+            ): vol.In(PV_ORIENTATIONS),
+            vol.Optional(
+                CONF_PV_PANEL_COUNT, default=data[CONF_PV_PANEL_COUNT]
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=200.0)),
+            vol.Optional(CONF_PV_PANEL_WP, default=data[CONF_PV_PANEL_WP]): vol.All(
+                vol.Coerce(float), vol.Range(min=0.0, max=1500.0)
+            ),
+            vol.Optional(
+                CONF_PV_INVERTER_LIMIT_W,
+                default=data[CONF_PV_INVERTER_LIMIT_W],
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=50000.0)),
             vol.Optional(
                 CONF_BATTERY_MODULE_COUNT_ENTITY,
                 default=data[CONF_BATTERY_MODULE_COUNT_ENTITY],

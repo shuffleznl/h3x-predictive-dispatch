@@ -14,10 +14,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_DISCHARGE_POWER_MODE,
+    CONF_PV_ORIENTATION,
     CONF_STRATEGY_PROFILE,
     CONF_TERMINAL_SOC_MODE,
     DISCHARGE_POWER_MODES,
     DOMAIN,
+    PV_ORIENTATIONS,
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
 )
@@ -56,6 +58,14 @@ SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
         icon="mdi:transmission-tower-export",
         option_key=CONF_DISCHARGE_POWER_MODE,
         options=DISCHARGE_POWER_MODES,
+    ),
+    H3XArbitrageSelectDescription(
+        key="pv_orientation",
+        translation_key="pv_orientation",
+        name="PV orientation",
+        icon="mdi:compass",
+        option_key=CONF_PV_ORIENTATION,
+        options=PV_ORIENTATIONS,
     ),
 )
 
@@ -130,5 +140,16 @@ class H3XArbitrageSelect(CoordinatorEntity[H3XArbitrageCoordinator], SelectEntit
             return {
                 "spread": "spread export across nearby expensive slots when prices are close enough",
                 "max_economic": "use the optimizer's highest economic target power",
+            }
+        if self.entity_description.option_key == CONF_PV_ORIENTATION:
+            return {
+                "N": "north-facing plane, low default yield in the northern hemisphere",
+                "NE": "north-east-facing plane, morning biased",
+                "E": "east-facing plane, morning biased",
+                "SE": "south-east-facing plane, late-morning biased",
+                "S": "south-facing plane, midday biased",
+                "SW": "south-west-facing plane, afternoon biased",
+                "W": "west-facing plane, afternoon biased",
+                "NW": "north-west-facing plane, late-afternoon biased",
             }
         return {}
