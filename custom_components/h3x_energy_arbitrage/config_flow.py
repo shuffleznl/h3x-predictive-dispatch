@@ -22,12 +22,19 @@ from .const import (
     CONF_CONTROL_ENABLED,
     CONF_CURRENCY,
     CONF_CYCLE_COST,
+    CONF_DIRECTION_CHANGE_COST,
+    CONF_DUTCH_TARIFF_ENABLED,
     CONF_DISCHARGE_LIMIT_SOC_ENTITY,
     CONF_DISCHARGE_POWER_MODE,
     CONF_DISCHARGE_SPREAD_MAX_HOURS,
     CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE,
     CONF_EMS_MODE_ENTITY,
     CONF_ENABLE_PEAK_POWER,
+    CONF_ENERGY_TAX_PER_KWH,
+    CONF_EV_CHARGING_THRESHOLD_W,
+    CONF_EV_FORECAST_MODE,
+    CONF_EV_POWER_ENTITY,
+    CONF_FORECAST_RISK_PERCENTILE,
     CONF_GRID_EXPORT_LIMIT_W,
     CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
     CONF_GRID_IMPORT_LIMIT_W,
@@ -36,11 +43,14 @@ from .const import (
     CONF_IDLE_EMS_MODE,
     CONF_INVERTER_FULL_SCALE_POWER_W,
     CONF_LOAD_POWER_ENTITY,
+    CONF_LOAD_FORECAST_MODE,
+    CONF_LOAD_HISTORY_DAYS,
     CONF_MAX_BMS_TEMP_C,
     CONF_MAX_CHARGE_C_RATE,
     CONF_MAX_DISCHARGE_C_RATE,
     CONF_MAX_SOC,
     CONF_MIN_ACTIVE_POWER_W,
+    CONF_MIN_ACTION_DURATION_MINUTES,
     CONF_MIN_CHARGE_TEMP_C,
     CONF_MIN_PROFIT_MARGIN,
     CONF_MIN_SOC,
@@ -62,6 +72,7 @@ from .const import (
     CONF_RESOLUTION,
     CONF_ROUND_TRIP_EFFICIENCY,
     CONF_SELL_COST_ADDER,
+    CONF_ACTION_START_COST,
     CONF_SHELLY_PHASE_A_POWER_ENTITY,
     CONF_SHELLY_PHASE_B_POWER_ENTITY,
     CONF_SHELLY_PHASE_C_POWER_ENTITY,
@@ -69,9 +80,12 @@ from .const import (
     CONF_SOLAR_POWER_ENTITY,
     CONF_SOC_ENTITY,
     CONF_STRATEGY_PROFILE,
+    CONF_SUPPLIER_BUY_MARKUP,
+    CONF_SUPPLIER_SELL_MARKDOWN,
     CONF_TERMINAL_SOC_MODE,
     CONF_UPDATE_INTERVAL_MINUTES,
     CONF_USER_EMS_MODE,
+    CONF_VAT_PERCENT,
     CURRENCIES,
     DEFAULT_STRATEGY_PROFILE,
     DEFAULTS,
@@ -82,6 +96,8 @@ from .const import (
     FORCE_H3_SYSTEM_CAPACITY_KWH,
     FORCE_H3_USABLE_CAPACITY_KWH,
     FORCE_H3_USABLE_DOD,
+    EV_FORECAST_MODES,
+    LOAD_FORECAST_MODES,
     NORDPOOL_AREAS,
     NORDPOOL_CONF_AREAS,
     NORDPOOL_CONF_CURRENCY,
@@ -183,6 +199,22 @@ def _schema(
             vol.Optional(
                 CONF_STRATEGY_PROFILE, default=data[CONF_STRATEGY_PROFILE]
             ): vol.In(STRATEGY_PROFILES),
+            vol.Optional(
+                CONF_LOAD_FORECAST_MODE, default=data[CONF_LOAD_FORECAST_MODE]
+            ): vol.In(LOAD_FORECAST_MODES),
+            vol.Optional(
+                CONF_LOAD_HISTORY_DAYS, default=data[CONF_LOAD_HISTORY_DAYS]
+            ): vol.All(vol.Coerce(float), vol.Range(min=2.0, max=90.0)),
+            vol.Optional(
+                CONF_EV_FORECAST_MODE, default=data[CONF_EV_FORECAST_MODE]
+            ): vol.In(EV_FORECAST_MODES),
+            vol.Optional(
+                CONF_EV_POWER_ENTITY, default=data[CONF_EV_POWER_ENTITY]
+            ): str,
+            vol.Optional(
+                CONF_EV_CHARGING_THRESHOLD_W,
+                default=data[CONF_EV_CHARGING_THRESHOLD_W],
+            ): vol.All(vol.Coerce(float), vol.Range(min=500.0, max=22000.0)),
             vol.Optional(
                 CONF_EMS_MODE_ENTITY, default=data[CONF_EMS_MODE_ENTITY]
             ): str,
@@ -328,6 +360,25 @@ def _schema(
                 CONF_SELL_COST_ADDER, default=data[CONF_SELL_COST_ADDER]
             ): vol.All(vol.Coerce(float), vol.Range(min=-1.0, max=1.0)),
             vol.Optional(
+                CONF_DUTCH_TARIFF_ENABLED,
+                default=data[CONF_DUTCH_TARIFF_ENABLED],
+            ): bool,
+            vol.Optional(
+                CONF_VAT_PERCENT, default=data[CONF_VAT_PERCENT]
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100.0)),
+            vol.Optional(
+                CONF_ENERGY_TAX_PER_KWH,
+                default=data[CONF_ENERGY_TAX_PER_KWH],
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+            vol.Optional(
+                CONF_SUPPLIER_BUY_MARKUP,
+                default=data[CONF_SUPPLIER_BUY_MARKUP],
+            ): vol.All(vol.Coerce(float), vol.Range(min=-1.0, max=1.0)),
+            vol.Optional(
+                CONF_SUPPLIER_SELL_MARKDOWN,
+                default=data[CONF_SUPPLIER_SELL_MARKDOWN],
+            ): vol.All(vol.Coerce(float), vol.Range(min=-1.0, max=1.0)),
+            vol.Optional(
                 CONF_CONTINUOUS_POWER_W, default=data[CONF_CONTINUOUS_POWER_W]
             ): vol.All(vol.Coerce(float), vol.Range(min=100.0, max=50000.0)),
             vol.Optional(CONF_PEAK_POWER_W, default=data[CONF_PEAK_POWER_W]): vol.All(
@@ -371,6 +422,21 @@ def _schema(
                 CONF_DISCHARGE_SPREAD_MAX_HOURS,
                 default=data[CONF_DISCHARGE_SPREAD_MAX_HOURS],
             ): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=12.0)),
+            vol.Optional(
+                CONF_MIN_ACTION_DURATION_MINUTES,
+                default=data[CONF_MIN_ACTION_DURATION_MINUTES],
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=240.0)),
+            vol.Optional(
+                CONF_ACTION_START_COST, default=data[CONF_ACTION_START_COST]
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=5.0)),
+            vol.Optional(
+                CONF_DIRECTION_CHANGE_COST,
+                default=data[CONF_DIRECTION_CHANGE_COST],
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=5.0)),
+            vol.Optional(
+                CONF_FORECAST_RISK_PERCENTILE,
+                default=data[CONF_FORECAST_RISK_PERCENTILE],
+            ): vol.All(vol.Coerce(float), vol.Range(min=50.0, max=90.0)),
             vol.Optional(
                 CONF_HORIZON_HOURS, default=data[CONF_HORIZON_HOURS]
             ): vol.All(vol.Coerce(float), vol.Range(min=2.0, max=72.0)),

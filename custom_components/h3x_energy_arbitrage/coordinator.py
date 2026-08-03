@@ -32,12 +32,18 @@ from .const import (
     CONF_CONTROL_ENABLED,
     CONF_CURRENCY,
     CONF_CYCLE_COST,
+    CONF_DIRECTION_CHANGE_COST,
     CONF_DISCHARGE_LIMIT_SOC_ENTITY,
     CONF_DISCHARGE_POWER_MODE,
     CONF_DISCHARGE_SPREAD_MAX_HOURS,
     CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE,
     CONF_EMS_MODE_ENTITY,
     CONF_ENABLE_PEAK_POWER,
+    CONF_ENERGY_TAX_PER_KWH,
+    CONF_EV_CHARGING_THRESHOLD_W,
+    CONF_EV_FORECAST_MODE,
+    CONF_EV_POWER_ENTITY,
+    CONF_FORECAST_RISK_PERCENTILE,
     CONF_GRID_EXPORT_LIMIT_W,
     CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
     CONF_GRID_IMPORT_LIMIT_W,
@@ -46,11 +52,14 @@ from .const import (
     CONF_IDLE_EMS_MODE,
     CONF_INVERTER_FULL_SCALE_POWER_W,
     CONF_LOAD_POWER_ENTITY,
+    CONF_LOAD_FORECAST_MODE,
+    CONF_LOAD_HISTORY_DAYS,
     CONF_MAX_BMS_TEMP_C,
     CONF_MAX_CHARGE_C_RATE,
     CONF_MAX_DISCHARGE_C_RATE,
     CONF_MAX_SOC,
     CONF_MIN_ACTIVE_POWER_W,
+    CONF_MIN_ACTION_DURATION_MINUTES,
     CONF_MIN_CHARGE_TEMP_C,
     CONF_MIN_PROFIT_MARGIN,
     CONF_MIN_SOC,
@@ -70,6 +79,9 @@ from .const import (
     CONF_RESOLUTION,
     CONF_ROUND_TRIP_EFFICIENCY,
     CONF_SELL_COST_ADDER,
+    CONF_DUTCH_TARIFF_ENABLED,
+    CONF_SUPPLIER_BUY_MARKUP,
+    CONF_SUPPLIER_SELL_MARKDOWN,
     CONF_SHELLY_PHASE_A_POWER_ENTITY,
     CONF_SHELLY_PHASE_B_POWER_ENTITY,
     CONF_SHELLY_PHASE_C_POWER_ENTITY,
@@ -77,9 +89,11 @@ from .const import (
     CONF_SOLAR_POWER_ENTITY,
     CONF_SOC_ENTITY,
     CONF_STRATEGY_PROFILE,
+    CONF_ACTION_START_COST,
     CONF_TERMINAL_SOC_MODE,
     CONF_UPDATE_INTERVAL_MINUTES,
     CONF_USER_EMS_MODE,
+    CONF_VAT_PERCENT,
     DEFAULTS,
     DOMAIN,
     FORCE_H3_MAX_MODULES,
@@ -94,6 +108,14 @@ from .const import (
     PV_ORIENTATIONS,
     STRATEGY_PROFILE_SETTINGS,
 )
+from .forecast import ForecastBand, HistoricalLoadForecaster, LoadForecast
+from .history import RecorderHistoryLoader
+from .optimizer import (
+    OptimizerSettings,
+    OptimizerSlot,
+    PredictiveDispatchOptimizer,
+)
+from .tariff import TariffSettings, retail_price
 
 LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
@@ -227,6 +249,9 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._last_power_percent: float | None = None
         self._last_ems_mode: str | None = None
+        self._last_applied_action: str | None = None
+        self._last_action_changed_at: datetime | None = None
+        self._last_target_power_w: float = 0.0
         self._store = Store(
             hass,
             STORAGE_VERSION,
@@ -235,6 +260,11 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._state_loaded = False
         self._last_full_charge_at: datetime | None = None
         self._last_price_fetch_errors: list[str] = []
+        self._history_loader = RecorderHistoryLoader(hass)
+        self._historical_observations = []
+        self._history_loaded_at: datetime | None = None
+        self._load_forecast_result: LoadForecast | None = None
+        self._predictive_optimizer = PredictiveDispatchOptimizer()
 
     def _option(self, key: str) -> Any:
         """Return an option value with a default fallback."""
@@ -332,6 +362,7 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if current_soc is not None:
                 await self._async_record_full_charge_if_reached(current_soc)
             slots = await self._fetch_price_slots()
+            await self._async_refresh_history()
             decision = self._compute_decision(slots)
         except Exception as err:  # pylint: disable=broad-except
             LOGGER.exception("Failed to compute arbitrage decision")
@@ -350,6 +381,30 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_shutdown(self) -> None:
         """Shut down coordinator resources."""
         return None
+
+    async def _async_refresh_history(self) -> None:
+        """Refresh Recorder training data at most once per hour."""
+        if str(self._option(CONF_LOAD_FORECAST_MODE)) != "historical":
+            self._historical_observations = []
+            return
+        now = dt_util.utcnow()
+        if (
+            self._history_loaded_at is not None
+            and now - self._history_loaded_at < timedelta(hours=1)
+        ):
+            return
+        load_entity = str(self._option(CONF_SHELLY_TOTAL_POWER_ENTITY)).strip()
+        if not load_entity:
+            load_entity = str(self._option(CONF_LOAD_POWER_ENTITY)).strip()
+        ev_entity = str(self._option(CONF_EV_POWER_ENTITY)).strip()
+        self._historical_observations = (
+            await self._history_loader.async_load_power_history(
+                load_entity,
+                days=int(float(self._option(CONF_LOAD_HISTORY_DAYS))),
+                ev_entity_id=ev_entity or None,
+            )
+        )
+        self._history_loaded_at = now
 
     async def _async_load_state(self) -> None:
         """Load persisted optimizer state."""
@@ -594,11 +649,17 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         solar_power_w = self._positive_power_state_w(
             str(self._option(CONF_SOLAR_POWER_ENTITY)).strip()
         )
-        load_forecast_w = self._load_forecast_for_slots(future_slots, load_power_w)
+        load_forecast = self._forecast_load(future_slots, load_power_w)
+        self._load_forecast_result = load_forecast
+        load_forecast_w = [band.p50_w for band in load_forecast.bands]
         solar_forecast_w, solar_forecast_source, solar_forecast_scale = (
             self._solar_forecast_for_slots(future_slots, solar_power_w)
         )
-        decision = self._run_optimizer(
+        solar_forecast_bands = self._solar_forecast_bands(
+            solar_forecast_w,
+            source=solar_forecast_source,
+        )
+        decision = self._run_predictive_optimizer(
             future_slots=future_slots,
             current_energy=current_energy,
             min_energy=min_energy,
@@ -608,13 +669,15 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             discharge_allowed=discharge_allowed,
             usable_capacity_kwh=usable_capacity_kwh,
             periodic_full_charge_due=force_full_charge,
-            load_forecast_w=load_forecast_w,
-            solar_forecast_w=solar_forecast_w,
+            load_forecast=load_forecast,
+            solar_forecast=solar_forecast_bands,
         )
 
         current_slot = future_slots[0]
         decision.soc = soc
-        decision.current_price = current_slot.price
+        decision.current_price = retail_price(
+            current_slot.price, self._tariff_settings()
+        ).buy
         decision.bms_temperature_c = bms_temp
         decision.resolution_minutes = interval_minutes
         decision.slots_available = len(future_slots)
@@ -679,11 +742,26 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
                 "solar_forecast_source": solar_forecast_source,
                 "solar_forecast_scale": round(solar_forecast_scale, 3),
-                "load_forecast": self._serialize_power_forecast(
-                    future_slots, load_forecast_w
+                "load_forecast_source": load_forecast.metrics.source,
+                "load_forecast_observations": load_forecast.metrics.observations,
+                "load_forecast_days": load_forecast.metrics.days_covered,
+                "load_forecast_mae_w": (
+                    round(load_forecast.metrics.mae_w, 1)
+                    if load_forecast.metrics.mae_w is not None
+                    else None
                 ),
-                "solar_forecast": self._serialize_power_forecast(
-                    future_slots, solar_forecast_w
+                "load_forecast_bias_w": (
+                    round(load_forecast.metrics.bias_w, 1)
+                    if load_forecast.metrics.bias_w is not None
+                    else None
+                ),
+                "ev_forecast_mode": str(self._option(CONF_EV_FORECAST_MODE)),
+                "ev_sessions_detected": load_forecast.metrics.ev_sessions,
+                "load_forecast": self._serialize_forecast_bands(
+                    future_slots, load_forecast.bands
+                ),
+                "solar_forecast": self._serialize_forecast_bands(
+                    future_slots, solar_forecast_bands
                 ),
                 **periodic_full_charge,
                 "discharge_power_mode": str(self._option(CONF_DISCHARGE_POWER_MODE)),
@@ -717,15 +795,6 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return self._idle_from(decision, temp_reason or "charging not allowed")
         if decision.action == "discharge" and not discharge_allowed:
             return self._idle_from(decision, temp_reason or "discharging not allowed")
-
-        if decision.action == "discharge":
-            self._shape_discharge_decision(
-                decision=decision,
-                future_slots=future_slots,
-                current_energy=current_energy,
-                min_energy=min_energy,
-                now=now,
-            )
 
         if decision.action in {"charge", "discharge"}:
             if decision.action == "charge":
@@ -1184,14 +1253,262 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return None
         return max(value, 0.0)
 
-    @staticmethod
-    def _load_forecast_for_slots(
+    def _forecast_load(
+        self,
         future_slots: list[PriceSlot],
         current_load_w: float | None,
-    ) -> list[float]:
-        """Return a stable load forecast aligned to price slots."""
-        load_w = max(current_load_w or 0.0, 0.0)
-        return [load_w for _slot in future_slots]
+    ) -> LoadForecast:
+        """Build a historical load forecast with an explicit flat fallback."""
+        ev_mode = str(self._option(CONF_EV_FORECAST_MODE))
+        ev_power = self._positive_power_state_w(
+            str(self._option(CONF_EV_POWER_ENTITY)).strip()
+        )
+        forecaster = HistoricalLoadForecaster(
+            self._historical_observations,
+            ev_mode=ev_mode,
+            ev_threshold_w=float(self._option(CONF_EV_CHARGING_THRESHOLD_W)),
+        )
+        return forecaster.forecast(
+            future_slots,
+            current_load_w=current_load_w,
+            current_ev_w=ev_power,
+        )
+
+    @staticmethod
+    def _solar_forecast_bands(
+        forecast_w: list[float],
+        *,
+        source: str,
+    ) -> list[ForecastBand]:
+        """Add calibrated uncertainty bands to the deterministic PV model."""
+        calibrated = "calibrated" in source
+        spread = 0.20 if calibrated else 0.35
+        confidence = 0.75 if calibrated else 0.45
+        return [
+            ForecastBand(
+                p10_w=max(power_w * (1 - spread), 0.0),
+                p50_w=max(power_w, 0.0),
+                p90_w=max(power_w * (1 + spread), 0.0),
+                samples=0,
+                confidence=confidence,
+            )
+            for power_w in forecast_w
+        ]
+
+    def _serialize_forecast_bands(
+        self,
+        slots: list[PriceSlot],
+        bands: list[ForecastBand],
+    ) -> list[dict[str, Any]]:
+        """Serialize probabilistic forecasts for dashboard charts."""
+        serialized: list[dict[str, Any]] = []
+        now = dt_util.utcnow()
+        for index, slot in enumerate(slots):
+            band = bands[index] if index < len(bands) else ForecastBand(0, 0, 0, 0, 0)
+            duration_h = self._slot_duration_hours(
+                slot,
+                now if index == 0 else None,
+            )
+            serialized.append(
+                {
+                    **self._serialize_price_slot(slot),
+                    "power_w": round(band.p50_w, 1),
+                    "p10_w": round(band.p10_w, 1),
+                    "p50_w": round(band.p50_w, 1),
+                    "p90_w": round(band.p90_w, 1),
+                    "energy_kwh": round(band.p50_w * duration_h / 1000, 3),
+                    "samples": band.samples,
+                    "confidence": round(band.confidence, 3),
+                    "ev_power_w": round(band.ev_w, 1),
+                }
+            )
+        return serialized
+
+    def _tariff_settings(self) -> TariffSettings:
+        """Resolve the retail tariff model from integration options."""
+        return TariffSettings(
+            dutch_enabled=bool(self._option(CONF_DUTCH_TARIFF_ENABLED)),
+            vat_percent=float(self._option(CONF_VAT_PERCENT)),
+            energy_tax_per_kwh=float(self._option(CONF_ENERGY_TAX_PER_KWH)),
+            supplier_buy_markup_per_kwh=float(
+                self._option(CONF_SUPPLIER_BUY_MARKUP)
+            ),
+            supplier_sell_markdown_per_kwh=float(
+                self._option(CONF_SUPPLIER_SELL_MARKDOWN)
+            ),
+            legacy_buy_adder_per_kwh=float(self._option(CONF_BUY_COST_ADDER)),
+            legacy_sell_adder_per_kwh=float(self._option(CONF_SELL_COST_ADDER)),
+        )
+
+    def _run_predictive_optimizer(
+        self,
+        *,
+        future_slots: list[PriceSlot],
+        current_energy: float,
+        min_energy: float,
+        max_energy: float,
+        terminal_energy: float,
+        charge_allowed: bool,
+        discharge_allowed: bool,
+        usable_capacity_kwh: float,
+        periodic_full_charge_due: bool,
+        load_forecast: LoadForecast,
+        solar_forecast: list[ForecastBand],
+    ) -> Decision:
+        """Run the modular forecast-aware model-predictive optimizer."""
+        tariff = self._tariff_settings()
+        optimizer_slots: list[OptimizerSlot] = []
+        for index, slot in enumerate(future_slots):
+            price = retail_price(slot.price, tariff)
+            optimizer_slots.append(
+                OptimizerSlot(
+                    start=slot.start,
+                    end=slot.end,
+                    wholesale_price=slot.price,
+                    buy_price=price.buy,
+                    sell_price=price.sell,
+                    load=(
+                        load_forecast.bands[index]
+                        if index < len(load_forecast.bands)
+                        else ForecastBand(0, 0, 0, 0, 0)
+                    ),
+                    solar=(
+                        solar_forecast[index]
+                        if index < len(solar_forecast)
+                        else ForecastBand(0, 0, 0, 0, 0)
+                    ),
+                )
+            )
+        charge_limit = self._slot_power_limit(
+            future_slots, "charge", usable_capacity_kwh
+        )
+        discharge_limit = self._slot_power_limit(
+            future_slots, "discharge", usable_capacity_kwh
+        )
+        settings = OptimizerSettings(
+            min_energy_kwh=min_energy,
+            max_energy_kwh=max_energy,
+            initial_energy_kwh=current_energy,
+            terminal_energy_kwh=terminal_energy,
+            charge_efficiency=math.sqrt(
+                float(self._option(CONF_ROUND_TRIP_EFFICIENCY))
+            ),
+            discharge_efficiency=math.sqrt(
+                float(self._option(CONF_ROUND_TRIP_EFFICIENCY))
+            ),
+            max_charge_power_w=charge_limit,
+            max_discharge_power_w=discharge_limit,
+            min_active_power_w=float(self._option(CONF_MIN_ACTIVE_POWER_W)),
+            grid_import_limit_w=float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
+            grid_export_limit_w=float(self._option(CONF_GRID_EXPORT_LIMIT_W)),
+            cycle_cost_per_kwh=float(self._option(CONF_CYCLE_COST)),
+            min_profit_margin_per_kwh=float(
+                self._option(CONF_MIN_PROFIT_MARGIN)
+            ),
+            action_start_cost=float(self._option(CONF_ACTION_START_COST)),
+            direction_change_cost=float(
+                self._option(CONF_DIRECTION_CHANGE_COST)
+            ),
+            min_action_duration_minutes=float(
+                self._option(CONF_MIN_ACTION_DURATION_MINUTES)
+            ),
+            risk_percentile=float(self._option(CONF_FORECAST_RISK_PERCENTILE)),
+            power_profile=str(self._option(CONF_STRATEGY_PROFILE)),
+            charge_allowed=charge_allowed,
+            discharge_allowed=discharge_allowed,
+        )
+        result = self._predictive_optimizer.optimize(optimizer_slots, settings)
+        if not result.schedule:
+            return Decision(action="idle", reason=result.reason)
+
+        plan = [row.as_dict() for row in result.schedule]
+        first = result.schedule[0]
+        first_row = plan[0]
+        action = first.action
+        reason = f"{first.intent}: {result.reason}"
+        # In self-consumption mode the inverter captures forecast solar surplus
+        # without a forced grid-charge command. Keep the economic plan visible,
+        # but avoid turning forecast error into accidental grid import.
+        if action == "charge" and first.intent == "solar_storage":
+            action = "idle"
+            reason = (
+                "solar surplus forecast; self-consumption mode should store it "
+                "without forced grid charging"
+            )
+
+        today = dt_util.now().date()
+        planned_charge = sum(
+            float(row["energy_kwh"]) for row in plan if row["action"] == "charge"
+        )
+        planned_discharge = sum(
+            float(row["energy_kwh"])
+            for row in plan
+            if row["action"] == "discharge"
+        )
+        grid_charge = sum(float(row["grid_charge_kwh"]) for row in plan)
+        solar_charge = sum(float(row["solar_charge_kwh"]) for row in plan)
+        self_consumption = sum(float(row["self_consumption_kwh"]) for row in plan)
+        grid_export = sum(float(row["battery_export_kwh"]) for row in plan)
+        today_value = sum(
+            float(row["value"])
+            for row in plan
+            if dt_util.as_local(
+                datetime.fromisoformat(str(row["start"]))
+            ).date()
+            == today
+        )
+        load_kwh = sum(
+            slot.load.p50_w * slot.duration_h / 1000 for slot in optimizer_slots
+        )
+        solar_kwh = sum(
+            slot.solar.p50_w * slot.duration_h / 1000 for slot in optimizer_slots
+        )
+        decision = Decision(
+            action=action,
+            reason=reason,
+            target_power_w=abs(first.target_power_w) if action != "idle" else 0.0,
+            target_power_percent=(
+                self._power_to_percent(action, abs(first.target_power_w))
+                if action != "idle"
+                else 0.0
+            ),
+            estimated_first_slot_value=float(first_row["value"]),
+            estimated_plan_value=result.estimated_savings,
+            estimated_today_value=today_value,
+            planned_charge_kwh=planned_charge,
+            planned_discharge_kwh=planned_discharge,
+            planned_grid_charge_kwh=grid_charge,
+            planned_solar_charge_kwh=solar_charge,
+            planned_self_consumption_kwh=self_consumption,
+            planned_grid_export_kwh=grid_export,
+            forecast_load_kwh=load_kwh,
+            forecast_solar_kwh=solar_kwh,
+            attributes={
+                "dispatch_plan": plan,
+                "baseline_grid_cost": round(result.baseline_cost, 4),
+                "optimized_grid_cost": round(result.optimized_cost, 4),
+                "modeled_cycle_cost": round(result.cycle_cost, 4),
+                "modeled_transition_cost": round(result.transition_cost, 4),
+                "equivalent_full_cycles": round(
+                    result.equivalent_full_cycles, 4
+                ),
+                "optimizer": "predictive_dispatch_dp_v1",
+                "optimizer_diagnostics": result.diagnostics,
+                "periodic_full_charge_forced": periodic_full_charge_due,
+                "dutch_tariff_enabled": tariff.dutch_enabled,
+                "vat_percent": tariff.vat_percent,
+                "energy_tax_per_kwh": tariff.energy_tax_per_kwh,
+                "supplier_buy_markup_per_kwh": (
+                    tariff.supplier_buy_markup_per_kwh
+                ),
+                "supplier_sell_markdown_per_kwh": (
+                    tariff.supplier_sell_markdown_per_kwh
+                ),
+            },
+        )
+        return decision
+
+    @staticmethod
 
     def _solar_forecast_for_slots(
         self,
@@ -1283,464 +1600,6 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         standard_meridian = offset_h * 15
         return 12.0 + (standard_meridian - longitude) / 15
 
-    def _serialize_power_forecast(
-        self,
-        slots: list[PriceSlot],
-        power_values_w: list[float],
-    ) -> list[dict[str, Any]]:
-        """Serialize a power forecast for dashboard attributes."""
-        serialized: list[dict[str, Any]] = []
-        now = dt_util.utcnow()
-        for index, slot in enumerate(slots):
-            power_w = power_values_w[index] if index < len(power_values_w) else 0.0
-            duration_h = self._slot_duration_hours(
-                slot,
-                now if index == 0 else None,
-            )
-            serialized.append(
-                {
-                    **self._serialize_price_slot(slot),
-                    "power_w": round(max(power_w, 0.0), 1),
-                    "energy_kwh": round(max(power_w, 0.0) * duration_h / 1000, 3),
-                }
-            )
-        return serialized
-
-    def _run_optimizer(
-        self,
-        future_slots: list[PriceSlot],
-        current_energy: float,
-        min_energy: float,
-        max_energy: float,
-        terminal_energy: float,
-        charge_allowed: bool,
-        discharge_allowed: bool,
-        usable_capacity_kwh: float,
-        periodic_full_charge_due: bool = False,
-        load_forecast_w: list[float] | None = None,
-        solar_forecast_w: list[float] | None = None,
-    ) -> Decision:
-        """Run a dynamic-programming arbitrage optimizer."""
-        now = dt_util.utcnow()
-        load_forecast_w = load_forecast_w or [0.0 for _slot in future_slots]
-        solar_forecast_w = solar_forecast_w or [0.0 for _slot in future_slots]
-        capacity_range = max_energy - min_energy
-        step_kwh = max(0.25, capacity_range / 100)
-        level_count = max(int(round(capacity_range / step_kwh)), 1)
-        levels = [
-            min_energy + index * capacity_range / level_count
-            for index in range(level_count + 1)
-        ]
-        initial_idx = min(
-            range(len(levels)),
-            key=lambda index: abs(levels[index] - current_energy),
-        )
-
-        terminal_values = {
-            index: 0.0 if energy + step_kwh / 2 >= terminal_energy else -1_000_000.0
-            for index, energy in enumerate(levels)
-        }
-        values = terminal_values
-        policy: dict[tuple[int, int], int] = {}
-        first_rewards: dict[tuple[int, int], float] = {}
-
-        charge_eff = math.sqrt(float(self._option(CONF_ROUND_TRIP_EFFICIENCY)))
-        discharge_eff = charge_eff
-        buy_adder = float(self._option(CONF_BUY_COST_ADDER))
-        sell_adder = float(self._option(CONF_SELL_COST_ADDER))
-        required_margin = float(self._option(CONF_CYCLE_COST)) + float(
-            self._option(CONF_MIN_PROFIT_MARGIN)
-        )
-
-        for slot_index in range(len(future_slots) - 1, -1, -1):
-            slot = future_slots[slot_index]
-            duration_h = self._slot_duration_hours(
-                slot,
-                now if slot_index == 0 else None,
-            )
-            charge_pmax_w = self._slot_power_limit(
-                future_slots,
-                "charge",
-                usable_capacity_kwh,
-            )
-            discharge_pmax_w = self._slot_power_limit(
-                future_slots,
-                "discharge",
-                usable_capacity_kwh,
-            )
-            max_charge_delta = charge_pmax_w * duration_h / 1000 * charge_eff
-            max_discharge_delta = discharge_pmax_w * duration_h / 1000 / discharge_eff
-            buy_price = slot.price + buy_adder
-            sell_price = slot.price - sell_adder
-            load_kwh = self._power_to_energy_kwh(
-                load_forecast_w,
-                slot_index,
-                duration_h,
-            )
-            solar_kwh = self._power_to_energy_kwh(
-                solar_forecast_w,
-                slot_index,
-                duration_h,
-            )
-            baseline_net_kwh = load_kwh - solar_kwh
-            baseline_cost = self._net_grid_cost(
-                baseline_net_kwh,
-                buy_price,
-                sell_price,
-            )
-
-            next_values: dict[int, float] = {}
-            for idx, energy in enumerate(levels):
-                best_value = values[idx]
-                best_idx = idx
-                best_reward = 0.0
-
-                if charge_allowed:
-                    for next_idx in range(idx + 1, len(levels)):
-                        delta = levels[next_idx] - energy
-                        if delta > max_charge_delta + step_kwh / 2:
-                            break
-                        ac_kwh = delta / charge_eff
-                        candidate_net_kwh = baseline_net_kwh + ac_kwh
-                        candidate_cost = self._net_grid_cost(
-                            candidate_net_kwh,
-                            buy_price,
-                            sell_price,
-                        )
-                        reward = baseline_cost - candidate_cost
-                        candidate = reward + values[next_idx]
-                        if candidate > best_value:
-                            best_value = candidate
-                            best_idx = next_idx
-                            best_reward = reward
-
-                if discharge_allowed:
-                    for next_idx in range(idx - 1, -1, -1):
-                        delta = energy - levels[next_idx]
-                        if delta > max_discharge_delta + step_kwh / 2:
-                            break
-                        ac_kwh = delta * discharge_eff
-                        candidate_net_kwh = baseline_net_kwh - ac_kwh
-                        candidate_cost = self._net_grid_cost(
-                            candidate_net_kwh,
-                            buy_price,
-                            sell_price,
-                        )
-                        reward = baseline_cost - candidate_cost
-                        reward -= ac_kwh * required_margin
-                        candidate = reward + values[next_idx]
-                        if candidate > best_value:
-                            best_value = candidate
-                            best_idx = next_idx
-                            best_reward = reward
-
-                next_values[idx] = best_value
-                policy[(slot_index, idx)] = best_idx
-                if slot_index == 0:
-                    first_rewards[(slot_index, idx)] = best_reward
-
-            values = next_values
-
-        plan_value = values.get(initial_idx, 0.0)
-        plan_slots, plan_totals = self._build_plan_summary(
-            future_slots=future_slots,
-            policy=policy,
-            levels=levels,
-            initial_idx=initial_idx,
-            step_kwh=step_kwh,
-            charge_eff=charge_eff,
-            discharge_eff=discharge_eff,
-            buy_adder=buy_adder,
-            sell_adder=sell_adder,
-            required_margin=required_margin,
-            now=now,
-            load_forecast_w=load_forecast_w,
-            solar_forecast_w=solar_forecast_w,
-        )
-        planned_charge_kwh = plan_totals["planned_charge_kwh"]
-        planned_discharge_kwh = plan_totals["planned_discharge_kwh"]
-        today_value = plan_totals["estimated_today_value"]
-
-        next_idx = policy.get((0, initial_idx), initial_idx)
-        delta = levels[next_idx] - levels[initial_idx]
-        duration_h = self._slot_duration_hours(future_slots[0], now)
-        if abs(delta) < step_kwh / 2 or duration_h <= 0:
-            reason = "optimizer selected no economic movement"
-            if periodic_full_charge_due:
-                reason = "periodic full charge due; waiting for selected charge slot"
-            return Decision(
-                action="idle",
-                reason=reason,
-                estimated_first_slot_value=first_rewards.get((0, initial_idx), 0.0),
-                estimated_plan_value=plan_value,
-                estimated_today_value=today_value,
-                planned_charge_kwh=planned_charge_kwh,
-                planned_discharge_kwh=planned_discharge_kwh,
-                planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
-                planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
-                planned_self_consumption_kwh=plan_totals[
-                    "planned_self_consumption_kwh"
-                ],
-                planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
-                forecast_load_kwh=plan_totals["forecast_load_kwh"],
-                forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
-                attributes={"dispatch_plan": plan_slots},
-            )
-
-        if delta > 0:
-            target_power = delta / charge_eff / duration_h * 1000
-            reason = "current slot is economical for grid charging"
-            if periodic_full_charge_due:
-                reason = "periodic full charge due; charging toward top-balance target"
-            first_slot = plan_slots[0] if plan_slots else {}
-            grid_charge_kwh = float(first_slot.get("grid_charge_kwh") or 0.0)
-            solar_charge_kwh = float(first_slot.get("solar_charge_kwh") or 0.0)
-            if grid_charge_kwh <= 0.05 and solar_charge_kwh > 0.05:
-                return Decision(
-                    action="idle",
-                    reason=(
-                        "solar surplus is expected; allow self-consumption mode to "
-                        "charge instead of forcing grid charge"
-                    ),
-                    estimated_first_slot_value=first_rewards.get((0, initial_idx), 0.0),
-                    estimated_plan_value=plan_value,
-                    estimated_today_value=today_value,
-                    planned_charge_kwh=planned_charge_kwh,
-                    planned_discharge_kwh=planned_discharge_kwh,
-                    planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
-                    planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
-                    planned_self_consumption_kwh=plan_totals[
-                        "planned_self_consumption_kwh"
-                    ],
-                    planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
-                    forecast_load_kwh=plan_totals["forecast_load_kwh"],
-                    forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
-                    attributes={"dispatch_plan": plan_slots},
-                )
-            return Decision(
-                action="charge",
-                reason=reason,
-                target_power_w=min(
-                    target_power,
-                    self._slot_power_limit(
-                        future_slots,
-                        "charge",
-                        usable_capacity_kwh,
-                    ),
-                ),
-                estimated_first_slot_value=first_rewards.get((0, initial_idx), 0.0),
-                estimated_plan_value=plan_value,
-                estimated_today_value=today_value,
-                planned_charge_kwh=planned_charge_kwh,
-                planned_discharge_kwh=planned_discharge_kwh,
-                planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
-                planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
-                planned_self_consumption_kwh=plan_totals[
-                    "planned_self_consumption_kwh"
-                ],
-                planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
-                forecast_load_kwh=plan_totals["forecast_load_kwh"],
-                forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
-                attributes={"dispatch_plan": plan_slots},
-            )
-
-        target_power = abs(delta) * discharge_eff / duration_h * 1000
-        reason = "current slot is economical for battery discharge"
-        if periodic_full_charge_due:
-            reason = "periodic full charge due; export remains economical before recharge"
-        return Decision(
-            action="discharge",
-            reason=reason,
-            target_power_w=min(
-                target_power,
-                self._slot_power_limit(
-                    future_slots,
-                    "discharge",
-                    usable_capacity_kwh,
-                ),
-            ),
-            estimated_first_slot_value=first_rewards.get((0, initial_idx), 0.0),
-            estimated_plan_value=plan_value,
-            estimated_today_value=today_value,
-            planned_charge_kwh=planned_charge_kwh,
-            planned_discharge_kwh=planned_discharge_kwh,
-            planned_grid_charge_kwh=plan_totals["planned_grid_charge_kwh"],
-            planned_solar_charge_kwh=plan_totals["planned_solar_charge_kwh"],
-            planned_self_consumption_kwh=plan_totals["planned_self_consumption_kwh"],
-            planned_grid_export_kwh=plan_totals["planned_grid_export_kwh"],
-            forecast_load_kwh=plan_totals["forecast_load_kwh"],
-            forecast_solar_kwh=plan_totals["forecast_solar_kwh"],
-            attributes={"dispatch_plan": plan_slots},
-        )
-
-    def _build_plan_summary(
-        self,
-        future_slots: list[PriceSlot],
-        policy: dict[tuple[int, int], int],
-        levels: list[float],
-        initial_idx: int,
-        step_kwh: float,
-        charge_eff: float,
-        discharge_eff: float,
-        buy_adder: float,
-        sell_adder: float,
-        required_margin: float,
-        now: datetime,
-        load_forecast_w: list[float],
-        solar_forecast_w: list[float],
-    ) -> tuple[list[dict[str, Any]], dict[str, float]]:
-        """Reconstruct the selected dispatch path for dashboard diagnostics."""
-        local_today = dt_util.now().date()
-        idx = initial_idx
-        plan_slots: list[dict[str, Any]] = []
-        totals = {
-            "planned_charge_kwh": 0.0,
-            "planned_discharge_kwh": 0.0,
-            "planned_grid_charge_kwh": 0.0,
-            "planned_solar_charge_kwh": 0.0,
-            "planned_self_consumption_kwh": 0.0,
-            "planned_grid_export_kwh": 0.0,
-            "forecast_load_kwh": 0.0,
-            "forecast_solar_kwh": 0.0,
-            "estimated_today_value": 0.0,
-        }
-
-        for slot_index, slot in enumerate(future_slots):
-            next_idx = policy.get((slot_index, idx), idx)
-            delta = levels[next_idx] - levels[idx]
-            duration_h = self._slot_duration_hours(
-                slot, now if slot_index == 0 else None
-            )
-            action = "idle"
-            target_power_w = 0.0
-            grid_energy_kwh = 0.0
-            value = 0.0
-            grid_charge_kwh = 0.0
-            solar_charge_kwh = 0.0
-            self_consumption_kwh = 0.0
-            battery_export_kwh = 0.0
-            buy_price = slot.price + buy_adder
-            sell_price = slot.price - sell_adder
-            load_kwh = self._power_to_energy_kwh(
-                load_forecast_w,
-                slot_index,
-                duration_h,
-            )
-            solar_kwh = self._power_to_energy_kwh(
-                solar_forecast_w,
-                slot_index,
-                duration_h,
-            )
-            baseline_net_kwh = load_kwh - solar_kwh
-            net_grid_kwh = baseline_net_kwh
-            baseline_cost = self._net_grid_cost(
-                baseline_net_kwh,
-                buy_price,
-                sell_price,
-            )
-            totals["forecast_load_kwh"] += load_kwh
-            totals["forecast_solar_kwh"] += solar_kwh
-
-            if abs(delta) >= step_kwh / 2 and duration_h > 0:
-                if delta > 0:
-                    action = "charge"
-                    grid_energy_kwh = delta / charge_eff
-                    target_power_w = grid_energy_kwh / duration_h * 1000
-                    solar_surplus_kwh = max(-baseline_net_kwh, 0.0)
-                    solar_charge_kwh = min(grid_energy_kwh, solar_surplus_kwh)
-                    grid_charge_kwh = max(grid_energy_kwh - solar_charge_kwh, 0.0)
-                    net_grid_kwh = baseline_net_kwh + grid_energy_kwh
-                    value = baseline_cost - self._net_grid_cost(
-                        net_grid_kwh,
-                        buy_price,
-                        sell_price,
-                    )
-                    totals["planned_charge_kwh"] += grid_energy_kwh
-                    totals["planned_grid_charge_kwh"] += grid_charge_kwh
-                    totals["planned_solar_charge_kwh"] += solar_charge_kwh
-                else:
-                    action = "discharge"
-                    grid_energy_kwh = abs(delta) * discharge_eff
-                    target_power_w = grid_energy_kwh / duration_h * 1000
-                    home_import_kwh = max(baseline_net_kwh, 0.0)
-                    self_consumption_kwh = min(grid_energy_kwh, home_import_kwh)
-                    battery_export_kwh = max(
-                        grid_energy_kwh - self_consumption_kwh,
-                        0.0,
-                    )
-                    net_grid_kwh = baseline_net_kwh - grid_energy_kwh
-                    value = baseline_cost - self._net_grid_cost(
-                        net_grid_kwh,
-                        buy_price,
-                        sell_price,
-                    )
-                    value -= grid_energy_kwh * required_margin
-                    totals["planned_discharge_kwh"] += grid_energy_kwh
-                    totals["planned_self_consumption_kwh"] += self_consumption_kwh
-                    totals["planned_grid_export_kwh"] += battery_export_kwh
-
-            if dt_util.as_local(slot.start).date() == local_today:
-                totals["estimated_today_value"] += value
-
-            net_grid_without_w = (
-                baseline_net_kwh / duration_h * 1000 if duration_h > 0 else 0.0
-            )
-            net_grid_with_w = (
-                net_grid_kwh / duration_h * 1000 if duration_h > 0 else 0.0
-            )
-
-            plan_slots.append(
-                {
-                    **self._serialize_price_slot(slot),
-                    "action": action,
-                    "target_power_w": round(target_power_w, 1),
-                    "energy_kwh": round(grid_energy_kwh, 3),
-                    "value": round(value, 4),
-                    "load_power_w": round(
-                        load_forecast_w[slot_index]
-                        if slot_index < len(load_forecast_w)
-                        else 0.0,
-                        1,
-                    ),
-                    "solar_power_w": round(
-                        solar_forecast_w[slot_index]
-                        if slot_index < len(solar_forecast_w)
-                        else 0.0,
-                        1,
-                    ),
-                    "net_grid_without_battery_w": round(net_grid_without_w, 1),
-                    "net_grid_with_battery_w": round(net_grid_with_w, 1),
-                    "baseline_grid_import_kwh": round(max(baseline_net_kwh, 0.0), 3),
-                    "baseline_grid_export_kwh": round(max(-baseline_net_kwh, 0.0), 3),
-                    "grid_import_kwh": round(max(net_grid_kwh, 0.0), 3),
-                    "grid_export_kwh": round(max(-net_grid_kwh, 0.0), 3),
-                    "grid_charge_kwh": round(grid_charge_kwh, 3),
-                    "solar_charge_kwh": round(solar_charge_kwh, 3),
-                    "self_consumption_kwh": round(self_consumption_kwh, 3),
-                    "battery_export_kwh": round(battery_export_kwh, 3),
-                }
-            )
-            idx = next_idx
-
-        return plan_slots, totals
-
-    @staticmethod
-    def _power_to_energy_kwh(
-        power_values_w: list[float],
-        index: int,
-        duration_h: float,
-    ) -> float:
-        """Convert one forecast power point into slot energy."""
-        if index >= len(power_values_w) or duration_h <= 0:
-            return 0.0
-        return max(power_values_w[index], 0.0) * duration_h / 1000
-
-    @staticmethod
-    def _net_grid_cost(net_grid_kwh: float, buy_price: float, sell_price: float) -> float:
-        """Return import cost minus export revenue for a net grid energy value."""
-        if net_grid_kwh >= 0:
-            return net_grid_kwh * buy_price
-        return net_grid_kwh * sell_price
 
     def _terminal_energy(
         self, current_energy: float, min_energy: float, max_energy: float
@@ -1805,134 +1664,6 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return False, False, f"BMS temperature above guard ({bms_temp:.1f} C)"
         return True, True, None
 
-    def _shape_discharge_decision(
-        self,
-        decision: Decision,
-        future_slots: list[PriceSlot],
-        current_energy: float,
-        min_energy: float,
-        now: datetime,
-    ) -> None:
-        """Spread export over nearby high-price slots when the economic loss is small."""
-        mode = str(self._option(CONF_DISCHARGE_POWER_MODE))
-        decision.attributes["target_power_before_shaping_w"] = round(
-            decision.target_power_w, 1
-        )
-
-        if mode != "spread" or decision.target_power_w <= 0 or not future_slots:
-            decision.attributes["discharge_spread_reason"] = "disabled"
-            return
-
-        tolerance_pct = max(
-            float(self._option(CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE)), 0.0
-        )
-        max_window_h = max(float(self._option(CONF_DISCHARGE_SPREAD_MAX_HOURS)), 0.25)
-        charge_eff = math.sqrt(float(self._option(CONF_ROUND_TRIP_EFFICIENCY)))
-        discharge_eff = charge_eff
-        sell_adder = float(self._option(CONF_SELL_COST_ADDER))
-        required_margin = float(self._option(CONF_CYCLE_COST)) + float(
-            self._option(CONF_MIN_PROFIT_MARGIN)
-        )
-
-        current_sell_price = future_slots[0].price - sell_adder
-        if current_sell_price <= required_margin:
-            decision.attributes["discharge_spread_reason"] = (
-                "current slot below required discharge margin"
-            )
-            return
-
-        price_floor = current_sell_price - abs(current_sell_price) * tolerance_pct / 100
-        price_floor = max(price_floor, required_margin)
-        eligible_slots: list[PriceSlot] = []
-        eligible_duration_h = 0.0
-        for slot_index, slot in enumerate(future_slots):
-            duration_h = self._slot_duration_hours(
-                slot, now if slot_index == 0 else None
-            )
-            if duration_h <= 0:
-                continue
-            sell_price = slot.price - sell_adder
-            if sell_price + 1e-9 < price_floor:
-                break
-            if eligible_duration_h >= max_window_h:
-                break
-
-            remaining_h = max(max_window_h - eligible_duration_h, 0.0)
-            if remaining_h <= 0:
-                break
-            eligible_slots.append(slot)
-            eligible_duration_h += min(duration_h, remaining_h)
-
-        if len(eligible_slots) <= 1 or eligible_duration_h <= 0:
-            decision.attributes["discharge_spread_reason"] = (
-                "no adjacent high-price slots within tolerance"
-            )
-            return
-
-        planned_window_kwh = self._planned_discharge_for_slots(
-            decision.attributes.get("dispatch_plan", []),
-            eligible_slots,
-        )
-        if planned_window_kwh <= 0:
-            planned_window_kwh = (
-                decision.target_power_w
-                * self._slot_duration_hours(future_slots[0], now)
-                / 1000
-            )
-
-        available_ac_kwh = max(current_energy - min_energy, 0.0) * discharge_eff
-        energy_to_spread_kwh = min(planned_window_kwh, available_ac_kwh)
-        if energy_to_spread_kwh <= 0:
-            decision.attributes["discharge_spread_reason"] = (
-                "no discharge energy available above reserve"
-            )
-            return
-
-        spread_power_w = energy_to_spread_kwh / eligible_duration_h * 1000
-        shaped_power_w = min(decision.target_power_w, spread_power_w)
-        if decision.target_power_w - shaped_power_w < 100:
-            decision.attributes["discharge_spread_reason"] = (
-                "planned energy already uses the selected high-price window"
-            )
-            return
-
-        decision.target_power_w = shaped_power_w
-        decision.target_power_percent = self._power_to_percent("discharge", shaped_power_w)
-        decision.reason = (
-            f"{decision.reason}; discharge spread over "
-            f"{eligible_duration_h:.2f} h high-price window"
-        )
-        decision.attributes.update(
-            {
-                "discharge_spread_reason": "applied",
-                "discharge_spread_price_floor": round(price_floor, 5),
-                "discharge_spread_slots": len(eligible_slots),
-                "discharge_spread_window_hours": round(eligible_duration_h, 3),
-                "discharge_spread_energy_kwh": round(energy_to_spread_kwh, 3),
-            }
-        )
-
-    def _planned_discharge_for_slots(
-        self,
-        dispatch_plan: Any,
-        slots: list[PriceSlot],
-    ) -> float:
-        """Return planned discharge energy for serialized slots."""
-        if not isinstance(dispatch_plan, list):
-            return 0.0
-
-        slot_starts = {self._serialize_price_slot(slot)["start"] for slot in slots}
-        planned = 0.0
-        for row in dispatch_plan:
-            if not isinstance(row, dict):
-                continue
-            if row.get("action") != "discharge" or row.get("start") not in slot_starts:
-                continue
-            try:
-                planned += float(row.get("energy_kwh") or 0.0)
-            except (TypeError, ValueError):
-                continue
-        return max(planned, 0.0)
 
     def _apply_grid_limit(
         self,
@@ -2018,11 +1749,15 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return int(round(slots[0].duration_hours * 60))
 
     def _serialize_price_slot(self, slot: PriceSlot) -> dict[str, Any]:
-        """Serialize a price slot using local wall-clock timestamps."""
+        """Serialize wholesale and effective retail prices."""
+        price = retail_price(slot.price, self._tariff_settings())
         return {
             "start": dt_util.as_local(slot.start).isoformat(),
             "end": dt_util.as_local(slot.end).isoformat(),
-            "price": round(slot.price, 5),
+            "price": round(price.buy, 5),
+            "wholesale_price": round(price.wholesale, 5),
+            "buy_price": round(price.buy, 5),
+            "sell_price": round(price.sell, 5),
         }
 
     def _price_trend_attributes(self, slots: list[PriceSlot]) -> dict[str, Any]:
@@ -2042,12 +1777,21 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for index, slot in enumerate(slots):
             window = slots[max(index - 2, 0) : min(index + 3, len(slots))]
             trend_price = (
-                sum(price_slot.price for price_slot in window) / len(window)
+                sum(
+                    retail_price(price_slot.price, self._tariff_settings()).buy
+                    for price_slot in window
+                )
+                / len(window)
                 if window
-                else slot.price
+                else retail_price(slot.price, self._tariff_settings()).buy
             )
-            next_price = slots[index + 1].price if index + 1 < len(slots) else slot.price
-            delta_next = next_price - slot.price
+            current_price = retail_price(slot.price, self._tariff_settings()).buy
+            next_price = (
+                retail_price(slots[index + 1].price, self._tariff_settings()).buy
+                if index + 1 < len(slots)
+                else current_price
+            )
+            delta_next = next_price - current_price
             trend_slots.append(
                 {
                     **self._serialize_price_slot(slot),
@@ -2116,6 +1860,7 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _apply_decision(self, decision: Decision) -> None:
         """Apply the control decision through Home Assistant entity services."""
         try:
+            self._stabilize_runtime_action(decision)
             await self._set_soc_limits(decision)
             if decision.action in {"charge", "discharge"}:
                 await self._set_ems_mode(str(self._option(CONF_USER_EMS_MODE)))
@@ -2124,10 +1869,74 @@ class H3XArbitrageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._set_power_ref(0.0)
                 await self._set_ems_mode(str(self._option(CONF_IDLE_EMS_MODE)))
             decision.applied = True
+            if decision.action != self._last_applied_action:
+                self._last_action_changed_at = dt_util.utcnow()
+            self._last_applied_action = decision.action
+            self._last_target_power_w = decision.target_power_w
         except Exception as err:  # pylint: disable=broad-except
             LOGGER.exception("Failed to apply H3X arbitrage decision")
             decision.applied = False
             decision.apply_error = str(err)
+
+    def _stabilize_runtime_action(self, decision: Decision) -> None:
+        """Prevent re-planning from creating short or reversing commands."""
+        if self._last_applied_action is None:
+            percent = self._state_float(str(self._option(CONF_POWER_REF_ENTITY)))
+            if percent is not None and percent < -0.2:
+                self._last_applied_action = "charge"
+            elif percent is not None and percent > 0.2:
+                self._last_applied_action = "discharge"
+            else:
+                self._last_applied_action = "idle"
+            self._last_action_changed_at = dt_util.utcnow()
+            self._last_target_power_w = (
+                abs(percent or 0.0)
+                / 100
+                * float(self._option(CONF_INVERTER_FULL_SCALE_POWER_W))
+            )
+
+        previous = self._last_applied_action
+        changed_at = self._last_action_changed_at
+        if previous not in {"charge", "discharge"} or changed_at is None:
+            return
+        if decision.action == previous:
+            return
+        elapsed = dt_util.utcnow() - changed_at
+        minimum = timedelta(
+            minutes=float(self._option(CONF_MIN_ACTION_DURATION_MINUTES))
+        )
+        safety_stop = decision.action == "failsafe" or (
+            decision.action == "idle"
+            and any(
+                token in decision.reason.lower()
+                for token in (
+                    "temperature",
+                    "soc",
+                    "unavailable",
+                    "grid limit",
+                    "not allowed",
+                )
+            )
+        )
+        if elapsed >= minimum or safety_stop:
+            return
+
+        remaining = minimum - elapsed
+        decision.attributes["runtime_hysteresis_applied"] = True
+        decision.attributes["runtime_hysteresis_remaining_minutes"] = round(
+            remaining.total_seconds() / 60, 1
+        )
+        decision.reason = (
+            f"{decision.reason}; holding {previous} for minimum action duration"
+        )
+        decision.action = previous
+        decision.target_power_w = max(
+            self._last_target_power_w,
+            float(self._option(CONF_MIN_ACTIVE_POWER_W)),
+        )
+        decision.target_power_percent = self._power_to_percent(
+            previous, decision.target_power_w
+        )
 
     async def _set_soc_limits(self, decision: Decision) -> None:
         """Set conservative SOC limits on the H3X integration when entities exist."""

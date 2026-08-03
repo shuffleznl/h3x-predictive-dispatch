@@ -21,6 +21,8 @@ def main() -> None:
     const_source = read(INTEGRATION / "const.py")
     config_source = read(INTEGRATION / "config_flow.py")
     coordinator_source = read(INTEGRATION / "coordinator.py")
+    forecast_source = read(INTEGRATION / "forecast.py")
+    optimizer_source = read(INTEGRATION / "optimizer.py")
     sensor_source = read(INTEGRATION / "sensor.py")
     number_source = read(INTEGRATION / "number.py")
     select_source = read(INTEGRATION / "select.py")
@@ -47,21 +49,35 @@ def main() -> None:
 
     for token in (
         "_home_load_power_w",
-        "_load_forecast_for_slots",
+        "_forecast_load",
         "_solar_forecast_for_slots",
+        "_solar_forecast_bands",
         "_solar_power_model_w",
         "_daylight_hours",
         "_solar_noon_hour",
-        "_net_grid_cost",
-        "baseline_cost - candidate_cost",
+        "_run_predictive_optimizer",
+        "_grid_charge_headroom_w",
+        "solar surplus forecast",
+    ):
+        if token not in coordinator_source:
+            raise AssertionError(f"{token} missing from coordinator wiring")
+
+    for token in (
+        "_risk_adjusted_grid_cost",
+        "_grid_feasible",
+        "baseline_cost",
+        "estimated_savings",
         "grid_charge_kwh",
         "solar_charge_kwh",
         "self_consumption_kwh",
         "battery_export_kwh",
-        "solar surplus is expected",
     ):
-        if token not in coordinator_source:
-            raise AssertionError(f"{token} missing from optimizer wiring")
+        if token not in optimizer_source:
+            raise AssertionError(f"{token} missing from predictive optimizer")
+
+    for token in ("HistoricalLoadForecaster", "ev_sessions", "p10_w", "p90_w"):
+        if token not in forecast_source:
+            raise AssertionError(f"{token} missing from load forecast")
 
     for token in (
         "load_forecast",

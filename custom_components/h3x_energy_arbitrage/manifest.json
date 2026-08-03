@@ -1,12 +1,12 @@
 {
   "domain": "h3x_energy_arbitrage",
   "name": "Pylontech H3X Energy Arbitrage",
-  "after_dependencies": ["nordpool", "pylontech_h3x_bridge"],
+  "after_dependencies": ["nordpool", "pylontech_h3x_bridge", "recorder"],
   "codeowners": ["@shufflez", "@shuffleznl", "@openai"],
   "config_flow": true,
   "documentation": "https://github.com/shuffleznl/h3x-energy-arbitrage",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/shuffleznl/h3x-energy-arbitrage/issues",
   "requirements": [],
-  "version": "0.7.0"
+  "version": "1.0.0-beta.1"
 }

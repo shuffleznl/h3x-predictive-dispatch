@@ -11,6 +11,11 @@
           "resolution": "Price resolution minutes",
           "control_enabled": "Enable automatic control",
           "strategy_profile": "Strategy profile",
+          "load_forecast_mode": "Load forecast mode",
+          "load_history_days": "Load history window days",
+          "ev_forecast_mode": "EV forecast mode",
+          "ev_power_entity": "EV charger power sensor entity",
+          "ev_charging_threshold_w": "EV detection threshold W",
           "ems_mode_entity": "H3X EMS mode select entity",
           "power_ref_entity": "H3X charge/discharge power reference entity",
           "soc_entity": "Battery SOC sensor entity",
@@ -48,6 +53,11 @@
           "min_profit_margin_per_kwh": "Minimum extra profit margin per kWh",
           "buy_cost_adder_per_kwh": "Buy-side cost adder per kWh",
           "sell_cost_adder_per_kwh": "Sell-side cost deduction per kWh",
+          "dutch_tariff_enabled": "Apply Dutch retail tariff",
+          "vat_percent": "VAT %",
+          "energy_tax_per_kwh": "Energy tax per kWh excluding VAT",
+          "supplier_buy_markup_per_kwh": "Supplier import markup per kWh excluding VAT",
+          "supplier_sell_markdown_per_kwh": "Supplier export deduction per kWh",
           "continuous_power_w": "Continuous charge/discharge power W",
           "peak_power_w": "Peak charge/discharge power W",
           "enable_peak_power": "Allow peak power when spread is high",
@@ -61,6 +71,10 @@
           "discharge_power_mode": "Discharge power mode",
           "discharge_spread_price_tolerance": "Discharge spread price tolerance %",
           "discharge_spread_max_hours": "Discharge spread maximum window hours",
+          "min_action_duration_minutes": "Minimum charge/discharge action duration minutes",
+          "action_start_cost": "Action start penalty in currency",
+          "direction_change_cost": "Charge/discharge direction change penalty in currency",
+          "forecast_risk_percentile": "Forecast risk percentile",
           "horizon_hours": "Optimization horizon hours",
           "update_interval_minutes": "Control update interval minutes",
           "user_ems_mode": "EMS mode used while controlling",
@@ -92,6 +106,11 @@
           "resolution": "Price resolution minutes",
           "control_enabled": "Enable automatic control",
           "strategy_profile": "Strategy profile",
+          "load_forecast_mode": "Load forecast mode",
+          "load_history_days": "Load history window days",
+          "ev_forecast_mode": "EV forecast mode",
+          "ev_power_entity": "EV charger power sensor entity",
+          "ev_charging_threshold_w": "EV detection threshold W",
           "ems_mode_entity": "H3X EMS mode select entity",
           "power_ref_entity": "H3X charge/discharge power reference entity",
           "soc_entity": "Battery SOC sensor entity",
@@ -129,6 +148,11 @@
           "min_profit_margin_per_kwh": "Minimum extra profit margin per kWh",
           "buy_cost_adder_per_kwh": "Buy-side cost adder per kWh",
           "sell_cost_adder_per_kwh": "Sell-side cost deduction per kWh",
+          "dutch_tariff_enabled": "Apply Dutch retail tariff",
+          "vat_percent": "VAT %",
+          "energy_tax_per_kwh": "Energy tax per kWh excluding VAT",
+          "supplier_buy_markup_per_kwh": "Supplier import markup per kWh excluding VAT",
+          "supplier_sell_markdown_per_kwh": "Supplier export deduction per kWh",
           "continuous_power_w": "Continuous charge/discharge power W",
           "peak_power_w": "Peak charge/discharge power W",
           "enable_peak_power": "Allow peak power when spread is high",
@@ -142,6 +166,10 @@
           "discharge_power_mode": "Discharge power mode",
           "discharge_spread_price_tolerance": "Discharge spread price tolerance %",
           "discharge_spread_max_hours": "Discharge spread maximum window hours",
+          "min_action_duration_minutes": "Minimum charge/discharge action duration minutes",
+          "action_start_cost": "Action start penalty in currency",
+          "direction_change_cost": "Charge/discharge direction change penalty in currency",
+          "forecast_risk_percentile": "Forecast risk percentile",
           "horizon_hours": "Optimization horizon hours",
           "update_interval_minutes": "Control update interval minutes",
           "user_ems_mode": "EMS mode used while controlling",
@@ -211,6 +239,12 @@
       "estimated_savings_today": {
         "name": "Estimated savings today"
       },
+      "baseline_grid_cost": {"name": "Baseline grid cost"},
+      "optimized_grid_cost": {"name": "Optimized grid cost"},
+      "modeled_cycle_cost": {"name": "Modeled cycle cost"},
+      "modeled_transition_cost": {"name": "Modeled transition cost"},
+      "forecast_accuracy": {"name": "Load forecast MAE"},
+      "equivalent_full_cycles": {"name": "Planned equivalent full cycles"},
       "planned_charge_energy": {
         "name": "Planned charge energy"
       },
@@ -246,6 +280,8 @@
       }
     },
     "select": {
+      "load_forecast_mode": {"name": "Load forecast mode"},
+      "ev_forecast_mode": {"name": "EV forecast mode"},
       "strategy_profile": {
         "name": "Strategy profile"
       },
@@ -260,11 +296,22 @@
       }
     },
     "switch": {
+      "dutch_tariff_enabled": {"name": "Dutch retail tariff"},
       "periodic_full_charge_enabled": {
         "name": "Periodic full charge"
       }
     },
     "number": {
+      "load_history_days": {"name": "Load history window"},
+      "ev_charging_threshold": {"name": "EV detection threshold"},
+      "forecast_risk_percentile": {"name": "Forecast risk percentile"},
+      "minimum_action_duration": {"name": "Minimum action duration"},
+      "action_start_cost": {"name": "Action start penalty"},
+      "direction_change_cost": {"name": "Direction change penalty"},
+      "vat_percent": {"name": "VAT"},
+      "energy_tax_per_kwh": {"name": "Energy tax per kWh"},
+      "supplier_buy_markup": {"name": "Supplier import markup"},
+      "supplier_sell_markdown": {"name": "Supplier export deduction"},
       "battery_module_count": {
         "name": "Battery module count"
       },

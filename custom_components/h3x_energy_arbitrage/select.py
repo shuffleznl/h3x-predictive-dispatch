@@ -14,11 +14,15 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_DISCHARGE_POWER_MODE,
+    CONF_EV_FORECAST_MODE,
+    CONF_LOAD_FORECAST_MODE,
     CONF_PV_ORIENTATION,
     CONF_STRATEGY_PROFILE,
     CONF_TERMINAL_SOC_MODE,
     DISCHARGE_POWER_MODES,
     DOMAIN,
+    EV_FORECAST_MODES,
+    LOAD_FORECAST_MODES,
     PV_ORIENTATIONS,
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
@@ -35,6 +39,22 @@ class H3XArbitrageSelectDescription(SelectEntityDescription):
 
 
 SELECTS: tuple[H3XArbitrageSelectDescription, ...] = (
+    H3XArbitrageSelectDescription(
+        key="load_forecast_mode",
+        translation_key="load_forecast_mode",
+        name="Load forecast mode",
+        icon="mdi:home-analytics",
+        option_key=CONF_LOAD_FORECAST_MODE,
+        options=LOAD_FORECAST_MODES,
+    ),
+    H3XArbitrageSelectDescription(
+        key="ev_forecast_mode",
+        translation_key="ev_forecast_mode",
+        name="EV forecast mode",
+        icon="mdi:car-electric",
+        option_key=CONF_EV_FORECAST_MODE,
+        options=EV_FORECAST_MODES,
+    ),
     H3XArbitrageSelectDescription(
         key="strategy_profile",
         translation_key="strategy_profile",
@@ -133,6 +153,7 @@ class H3XArbitrageSelect(CoordinatorEntity[H3XArbitrageCoordinator], SelectEntit
             return {
                 "conservative": "preserve SOC, weekly full charge, higher profit margin, spread discharge, no peak power",
                 "typical": "balanced default profile with spread discharge",
+                "spread": "lower C-rate and longer action windows across economically similar slots",
                 "aggressive": "reserve-only horizon, no periodic full-charge constraint, 100% max SOC, max-economic discharge, lowest extra margin",
                 "custom": "manual settings differ from a built-in profile",
             }

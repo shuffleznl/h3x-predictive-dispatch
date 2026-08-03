@@ -36,6 +36,7 @@ def main() -> None:
     config_flow_source = read(INTEGRATION / "config_flow.py")
     init_source = read(INTEGRATION / "__init__.py")
     coordinator_source = read(INTEGRATION / "coordinator.py")
+    optimizer_source = read(INTEGRATION / "optimizer.py")
     sensor_source = read(INTEGRATION / "sensor.py")
 
     for platform in ("Platform.NUMBER", "Platform.SELECT", "Platform.SWITCH"):
@@ -97,14 +98,17 @@ def main() -> None:
         "_price_rows_from_response",
         "_ensure_capacity_attributes",
         "_battery_capacity_attributes",
-        "_shape_discharge_decision",
+        "_run_predictive_optimizer",
         "_battery_configuration",
         "_home_load_power_w",
         "_solar_forecast_for_slots",
-        "_net_grid_cost",
     ):
         if token not in coordinator_source and token not in const_source:
             raise AssertionError(f"{token} missing from control wiring")
+
+    for token in ("_net_cost", "_risk_adjusted_grid_cost", "_grid_feasible"):
+        if token not in optimizer_source:
+            raise AssertionError(f"{token} missing from optimizer wiring")
 
     if 'key="reason"' not in sensor_source:
         raise AssertionError("decision reason sensor is missing")
@@ -137,8 +141,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.7.0"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.7.0")
+    if '"version": "1.0.0-beta.1"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 1.0.0-beta.1")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
         raise AssertionError("stale Nord Pool config entries must fall back to auto")
     if "\"get_prices_for_date\"" not in coordinator_source:

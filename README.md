@@ -2,6 +2,8 @@
 
 Home Assistant custom integration for Nord Pool driven charge/discharge decisions for a Pylontech Force H3X system.
 
+The `codex/predictive-dispatch-v1` branch is a ground-up optimizer redesign. Home Assistant I/O remains in the coordinator, while historical forecasting, tariff transformation, and model-predictive dispatch are independent modules that can be simulated without Home Assistant or live Modbus hardware.
+
 This repository contains one HACS integration:
 
 | Integration | Domain | Purpose |
@@ -15,6 +17,20 @@ This repository contains one HACS integration:
 - Nord Pool integration configured in Home Assistant.
 - Pylontech H3X Bridge installed from `https://github.com/shuffleznl/pylontech-fh3x-bridge`.
 - Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors and an SMA Sunny Boy PV power sensor.
+
+## Predictive Dispatch Architecture
+
+The controller recalculates a rolling schedule every five minutes over every published Nord Pool slot, normally 36 hours. It does not rely on fixed charge windows.
+
+1. Home Assistant Recorder supplies up to 28 days of five-minute Shelly/home-load statistics, aggregated into local 15-minute quarters.
+2. A robust recency-weighted forecast learns quarter-hour and weekday/weekend patterns. Median demand drives the plan; p10/p90 bands represent observed variability, and the current load residual is blended out over two hours.
+3. EV analysis is selectable: `off`, automatic rectangular-load detection, or a dedicated EV charger power sensor. Detected EV power is separated from heat pumps, water heaters, HVAC and normal household demand, then added back as a probability-weighted session forecast.
+4. PV is modeled from Home Assistant latitude/longitude, panel count, Wp, inverter cap and one of eight compass orientations. Current SMA AC power calibrates the near-term curve. The optimizer carries a wider uncertainty band when no live calibration is available.
+5. Dutch retail import is derived from Nord Pool wholesale price plus configurable supplier markup and energy tax, then VAT. Export is modeled separately and never receives the import energy-tax credit.
+6. A dynamic program minimizes expected grid cost plus forecast-tail risk, conversion losses, battery throughput cost, minimum profit margin, action-start cost and direction-change cost. SOC, C-rate, inverter power, import/export limits, minimum action duration, temperature permissions and terminal SOC are hard constraints.
+7. Only the current slot is dispatched. New measurements or prices cause a complete re-optimization, which is model-predictive control rather than a once-daily schedule.
+
+This follows the operational strengths visible in [ChargeIQ](https://github.com/johanzander/bess-manager), Predbat and EMHASS: explicit counterfactual cost, degradation-aware optimization, forecast-vs-actual diagnostics, fuse protection and continuous re-planning. The implementation remains a native HACS integration and does not require a separate add-on or cloud service.
 
 The controller calls the Nord Pool `get_price_indices_for_date` service, falls back to `get_prices_for_date` when custom-resolution indices are empty, reads the Pylontech H3X Bridge sensors, and writes the Pylontech H3X Bridge EMS mode and charge/discharge power entities when automatic control is enabled.
 
@@ -60,11 +76,12 @@ Shelly and SMA entity IDs are generated from the device names in Home Assistant,
 | Shelly Pro 3EM total home power | Set **Shelly Pro 3EM total home power sensor entity** to the Shelly total active power sensor when that sensor represents household consumption. |
 | Shelly Pro 3EM per-phase power | If no total load sensor is available, set phase A/B/C power sensors; the controller sums available phases. |
 | SMA Sunny Boy PV power | Set **SMA Sunny Boy current PV power sensor entity** to the SMA `pv_power` sensor. |
+| EV charger power | Optional. Select EV mode `sensor` and set the EV power entity for the cleanest session forecast; `detect` learns repeated high rectangular loads from total home power. |
 | PV orientation | Select one of `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, or `NW`. |
 | PV size | Set panel count and Wp rating. A zero panel count disables the internal PV forecast. |
 | PV inverter cap | Defaults to `2000 W` for a Sunny Boy 2.0 style setup; adjust if the inverter or export limit differs. |
 
-The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integrations/sma) exposes `pv_power` as current AC-side solar power, and the [Shelly integration](https://www.home-assistant.io/integrations/shelly/) communicates locally with the device. Home Assistant's [Forecast.Solar integration](https://www.home-assistant.io/integrations/forecast_solar/) can provide a richer weather-based forecast using location, orientation, and total Wp. This integration intentionally uses a simpler built-in model so it remains zero-dependency: it creates a daylight curve from Home Assistant latitude/longitude, shifts it by the configured compass orientation, caps it by inverter output, and calibrates the current slot from the SMA power reading when available.
+The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integrations/sma) exposes `pv_power` as current AC-side solar power, and the [Shelly integration](https://www.home-assistant.io/integrations/shelly/) communicates locally with the device. Home Assistant Recorder short-term statistics train the load model locally; no consumption history leaves Home Assistant.
 
 ## Exposed Sensors
 
@@ -87,6 +104,12 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 - `sensor.h3x_energy_arbitrage_first_slot_value`
 - `sensor.h3x_energy_arbitrage_estimated_savings`
 - `sensor.h3x_energy_arbitrage_estimated_savings_today`
+- `sensor.h3x_energy_arbitrage_baseline_grid_cost`
+- `sensor.h3x_energy_arbitrage_optimized_grid_cost`
+- `sensor.h3x_energy_arbitrage_modeled_cycle_cost`
+- `sensor.h3x_energy_arbitrage_modeled_transition_cost`
+- `sensor.h3x_energy_arbitrage_load_forecast_mae`
+- `sensor.h3x_energy_arbitrage_planned_equivalent_full_cycles`
 - `sensor.h3x_energy_arbitrage_planned_charge_energy`
 - `sensor.h3x_energy_arbitrage_planned_discharge_energy`
 - `sensor.h3x_energy_arbitrage_planned_grid_charge_energy`
@@ -107,7 +130,12 @@ The `price_plan` sensor is a unitless diagnostic carrier for Lovelace charting. 
 
 The integration exposes Home Assistant control entities so the strategy can be adjusted without opening the full options form:
 
-- `select.h3x_energy_arbitrage_strategy_profile`: `conservative`, `typical`, `aggressive`, or `custom`.
+- `select.h3x_energy_arbitrage_strategy_profile`: `conservative`, `typical`, `spread`, `aggressive`, or `custom`.
+- `select.h3x_energy_arbitrage_load_forecast_mode`: use Recorder history or the live flat fallback.
+- `select.h3x_energy_arbitrage_ev_forecast_mode`: `off`, automatic detection, or a dedicated EV power sensor.
+- `switch.h3x_energy_arbitrage_dutch_retail_tariff`: apply the Dutch retail transformation to Nord Pool wholesale prices.
+- Load-history, EV threshold, forecast-risk, minimum-duration, start-penalty and direction-change number controls expose the model assumptions at runtime.
+- VAT, energy tax, supplier import markup and supplier export deduction controls keep yearly contract changes user-adjustable.
 - `select.h3x_energy_arbitrage_end_of_horizon_soc`: preserve the current SOC by the end of the horizon, or allow discharge down to reserve.
 - `select.h3x_energy_arbitrage_discharge_power_mode`: spread discharge over adjacent high-price slots, or keep the maximum economic target power.
 - `number.h3x_energy_arbitrage_battery_module_count`: set the installed Force H3 module count when it is not available from a bridge sensor.
@@ -122,6 +150,7 @@ Strategy profiles apply these tradeoffs:
 
 - `conservative`: preserve current SOC, keep periodic full charge enabled, spread discharge over a wider price band, use a higher profit margin, lower normal maximum SOC, disable peak power, and cap charge/discharge at `0.35C`.
 - `typical`: balanced default behavior with discharge spread across nearby high-price slots when prices are within 10% of the current expensive slot, charge capped at `0.5C`, and discharge capped at `0.45C`.
+- `spread`: use lower charge/discharge power, longer minimum action windows, and a `0.3C` discharge cap to distribute profitable energy over broader morning/evening peaks.
 - `aggressive`: prioritize estimated savings by allowing reserve-only end-of-horizon behavior, disabling periodic full-charge forcing, allowing 100% maximum SOC, using maximum economic discharge power, removing extra profit margin, and allowing up to `0.5C`. This is economically aggressive and less battery-conservative.
 
 ## Economics And Limits
@@ -140,7 +169,10 @@ The optimizer supports:
 - optional Shelly load and SMA solar power inputs,
 - internal PV forecast from orientation, panel count, Wp rating, inverter cap, and current SMA power,
 - self-consumption value: discharge avoids household import before exporting, and charge uses forecast PV surplus before grid energy,
-- profile-controlled discharge spreading across economically similar expensive slots,
+- profile-controlled power candidates and minimum action duration inside the optimizer,
+- p10/p50/p90 historical load and PV uncertainty with configurable risk percentile,
+- explicit action-start and charge/discharge direction-change penalties to reject short marginal cycles,
+- baseline-versus-optimized grid cost, modeled wear cost and planned equivalent full-cycle diagnostics,
 - BMS temperature guards for LiFePO4 charging.
 
 Default power settings are `11 kW` continuous and `13.8 kW` peak, with peak power only used when the price spread clears the configured extra margin. C-rate caps are applied after those economic limits: for a 6-module pack with `29.17 kWh` usable capacity, `0.5C` is `14.6 kW`, so the inverter peak still limits the final setpoint. The default grid import limit is `17.5 kW`; set it to `0` in options to disable the import guard.
@@ -149,7 +181,11 @@ Charging is not intentionally spread across many hours. The optimizer still char
 
 PV surplus charging is treated differently from forced grid charging. If the selected current slot is expected to charge only from solar surplus, the controller exposes that planned charge energy but leaves the command at idle so the H3X can remain in self-consumption behavior instead of forcing a grid-charge command. If the planned charge needs grid energy, it uses the normal H3X charge command and still respects the `17.5 kW` default import limit.
 
-Discharge spreading is a post-optimizer shaping step. In `spread` mode, the selected export energy is averaged across consecutive expensive slots that remain within the configured price tolerance and maximum window. Larger batteries therefore tend to discharge across a longer high-price window when the prices are close enough, while still respecting the configured discharge C-rate. In `max_economic` mode, the raw optimizer setpoint is used.
+Discharge duration is decided inside the optimizer. The `conservative`, `typical`, and `aggressive` profiles change power candidates, terminal reserve, forecast risk, minimum action duration, and action penalties. A larger battery can therefore support both morning and evening peaks when two independent cycles remain profitable after losses and wear, while flat or marginal price spreads remain idle.
+
+## Dutch Tariff Defaults
+
+The branch defaults to the 2026 Dutch first-band electricity tax of `0.09161 EUR/kWh` excluding VAT, `21%` VAT, and a configurable `0.02 EUR/kWh` supplier import markup. The fixed annual energy-tax rebate is excluded because battery dispatch cannot change it. Retail contract terms differ, so verify the supplier markup and export deduction against the current Zonneplan contract before enabling control. Tax and VAT defaults are assumptions, not an auto-updating tax service.
 
 ## Battery Capacity
 
@@ -196,4 +232,5 @@ uv --cache-dir .uv-cache run --python 3.13 python tools/validate_sensor_metadata
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_periodic_full_charge.py
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_control_entities.py
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_solar_self_consumption.py
+uv --cache-dir .uv-cache run --python 3.13 python tools/validate_predictive_dispatch.py
 ```

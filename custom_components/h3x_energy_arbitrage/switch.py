@@ -11,7 +11,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_PERIODIC_FULL_CHARGE_ENABLED, DOMAIN
+from .const import CONF_DUTCH_TARIFF_ENABLED, CONF_PERIODIC_FULL_CHARGE_ENABLED, DOMAIN
 from .coordinator import H3XArbitrageCoordinator
 
 
@@ -23,6 +23,13 @@ class H3XArbitrageSwitchDescription(SwitchEntityDescription):
 
 
 SWITCHES: tuple[H3XArbitrageSwitchDescription, ...] = (
+    H3XArbitrageSwitchDescription(
+        key="dutch_tariff_enabled",
+        translation_key="dutch_tariff_enabled",
+        name="Dutch retail tariff",
+        icon="mdi:currency-eur",
+        option_key=CONF_DUTCH_TARIFF_ENABLED,
+    ),
     H3XArbitrageSwitchDescription(
         key="periodic_full_charge_enabled",
         translation_key="periodic_full_charge_enabled",
