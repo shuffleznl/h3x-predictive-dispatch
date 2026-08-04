@@ -164,8 +164,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.3"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.3")
+    if '"version": "0.2.4"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.4")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -182,6 +182,20 @@ def main() -> None:
         raise AssertionError("grid monitoring must not default to a retired meter")
     if "_grid_import_measurement" not in coordinator_source:
         raise AssertionError("Shelly grid source resolver is missing")
+    if "autodetect_shelly_total_active_power" not in coordinator_source:
+        raise AssertionError("entity-registry Shelly discovery is missing")
+    if "forecast_index = 1 if len(future_slots) > 1 else None" not in coordinator_source:
+        raise AssertionError("forecast power sensors must represent the next slot")
+    for stable_attribute in (
+        "economic_grid_charge_power_w",
+        "live_solar_surplus_power_w",
+        "forecast_power_slot_start",
+        "grid_net_power_w",
+    ):
+        if stable_attribute not in sensor_source:
+            raise AssertionError(
+                f"stable dashboard attribute is missing: {stable_attribute}"
+            )
     if "_normalize_resolution(user_input)" not in config_flow_source:
         raise AssertionError("config flow must normalize the submitted resolution")
     if "async_migrate_entry" not in init_source:

@@ -116,6 +116,7 @@ from .const import (
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
 )
+from .meter import autodetect_shelly_total_active_power
 
 
 class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -497,21 +498,9 @@ def _autodetected_defaults(hass: HomeAssistant) -> dict[str, Any]:
         if currency:
             defaults[CONF_CURRENCY] = str(currency).upper()
 
-    for state in hass.states.async_all("sensor"):
-        identity = " ".join(
-            (
-                state.entity_id,
-                str((state.attributes or {}).get("friendly_name") or ""),
-            )
-        ).lower()
-        if (
-            "shelly" in identity
-            and "total" in identity
-            and "active" in identity
-            and "power" in identity
-        ):
-            defaults[CONF_GRID_IMPORT_POWER_ENTITY] = state.entity_id
-            break
+    shelly_grid_entity = autodetect_shelly_total_active_power(hass)
+    if shelly_grid_entity:
+        defaults[CONF_GRID_IMPORT_POWER_ENTITY] = shelly_grid_entity
     return defaults
 
 

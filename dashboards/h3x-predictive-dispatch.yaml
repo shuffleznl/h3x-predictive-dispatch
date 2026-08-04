@@ -74,17 +74,27 @@ views:
             suffix: kWh
           - type: attribute
             entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
+            attribute: grid_charge_kwh
+            name: Planned grid-charge energy
+            suffix: kWh
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
+            attribute: solar_charge_kwh
+            name: Planned solar-charge energy
+            suffix: kWh
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
             attribute: intent
             name: Charge source decision
           - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: economic_grid_charge_w
-            name: Economic grid component
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: economic_grid_charge_power_w
+            name: Current economic grid-charge component
             suffix: W
           - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: live_surplus_w
-            name: Live solar surplus
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: live_solar_surplus_power_w
+            name: Current measured solar surplus
             suffix: W
           - entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
             name: Active or next discharge
@@ -172,6 +182,10 @@ views:
             entity: sensor.pylontech_h3x_predictive_dispatch_decision
             attribute: solcast_error
             name: Solcast last error
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: forecast_power_slot_start
+            name: Next forecast interval starts
 
       - type: grid
         columns: 4
@@ -179,16 +193,16 @@ views:
         cards:
           - type: tile
             entity: sensor.pylontech_h3x_predictive_dispatch_home_load_power
-            name: Home load
+            name: Home load now
           - type: tile
             entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
             name: SMA solar now
           - type: tile
             entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_power
-            name: Current-slot load forecast
+            name: Next-slot load forecast
           - type: tile
             entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power
-            name: Current-slot solar forecast
+            name: Next-slot solar forecast
           - type: tile
             entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_energy
             name: Horizon load
@@ -205,9 +219,9 @@ views:
           - entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
             name: SMA solar
           - entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_power
-            name: Forecast load
+            name: Next-slot load forecast
           - entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power
-            name: Forecast solar
+            name: Next-slot solar forecast
 
       - type: history-graph
         title: Battery power history
@@ -233,18 +247,43 @@ views:
         title: Shelly Pro 3EM grid trend and limits
         show_header_toggle: false
         entities:
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_net_power_w
             name: Signed grid power (+import / -export)
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
+            suffix: W
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_import_power_w
             name: Current grid import
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
+            suffix: W
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_import_average_power_w
             name: Time-weighted 15-minute average
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_trend
+            suffix: W
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_import_trend_w_per_min
             name: Import trend
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
+            suffix: W/min
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_charge_headroom_w
             name: Available battery charge headroom
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            name: Shelly/Recorder diagnostics
+            suffix: W
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_import_measurement_source
+            name: Active Shelly measurement source
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_import_trend_status
+            name: Recorder trend status
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_decision
+            attribute: grid_import_power_entity
+            name: Selected Shelly entity
           - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit
             name: Grid import limit
           - entity: number.pylontech_h3x_predictive_dispatch_grid_export_limit
@@ -254,8 +293,6 @@ views:
         title: Shelly grid import and charge headroom
         hours_to_show: 24
         entities:
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power
-            name: Signed grid power
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
             name: Current import
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average

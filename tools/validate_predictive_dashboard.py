@@ -40,14 +40,19 @@ def main() -> None:
         "type: history-graph",
         "attribute: solcast_fetched_at",
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_power",
-        "sensor.pylontech_h3x_predictive_dispatch_grid_net_power",
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average",
-        "sensor.pylontech_h3x_predictive_dispatch_grid_import_trend",
         "sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom",
-        "sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status",
         "number.pylontech_h3x_predictive_dispatch_grid_import_limit",
         "number.pylontech_h3x_predictive_dispatch_grid_export_limit",
-        "attribute: economic_grid_charge_w",
+        "attribute: economic_grid_charge_power_w",
+        "attribute: live_solar_surplus_power_w",
+        "attribute: grid_net_power_w",
+        "attribute: grid_import_measurement_source",
+        "attribute: grid_import_trend_w_per_min",
+        "attribute: grid_import_trend_status",
+        "attribute: forecast_power_slot_start",
+        "Next-slot load forecast",
+        "Next-slot solar forecast",
         "Active or next forced charge",
         "Price assumptions",
     )
@@ -56,7 +61,17 @@ def main() -> None:
             raise AssertionError(f"dashboard missing {token!r}")
     if "pylontech_h3x_energy_arbitrage" in source:
         raise AssertionError("dashboard still references the conflicting legacy domain")
-    for forbidden in ("custom:apexcharts-card", "type: markdown", "<table", "<tr>"):
+    for forbidden in (
+        "custom:apexcharts-card",
+        "type: markdown",
+        "<table",
+        "<tr>",
+        "attribute: economic_grid_charge_w",
+        "attribute: live_surplus_w",
+        "entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power",
+        "Current-slot load forecast",
+        "Current-slot solar forecast",
+    ):
         if forbidden in source:
             raise AssertionError(f"dashboard still uses unsupported {forbidden!r}")
 

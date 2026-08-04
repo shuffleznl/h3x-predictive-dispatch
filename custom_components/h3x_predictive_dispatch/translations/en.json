@@ -220,10 +220,10 @@
       "grid_charge_headroom": {"name": "Grid charge headroom"},
       "grid_diagnostics_status": {"name": "Shelly grid diagnostics status"},
       "forecast_load_power": {
-        "name": "Forecast load power"
+        "name": "Next-slot forecast load power"
       },
       "forecast_solar_power": {
-        "name": "Forecast solar power"
+        "name": "Next-slot forecast solar power"
       },
       "next_charge_slot": {
         "name": "Next charge slot"

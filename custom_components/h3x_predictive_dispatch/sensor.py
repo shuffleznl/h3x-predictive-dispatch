@@ -115,6 +115,8 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "grid_import_trend_w_per_min",
             "grid_import_trend_samples",
             "grid_import_trend_span_minutes",
+            "forecast_power_slot_start",
+            "forecast_power_slot_end",
             "solar_power_entity",
             "solar_forecast_source",
             "solar_forecast_scale",
@@ -175,6 +177,13 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "solar_power_w": data.get("solar_power_w"),
             "forecast_load_power_w": data.get("forecast_load_power_w"),
             "forecast_solar_power_w": data.get("forecast_solar_power_w"),
+            "economic_grid_charge_power_w": data.get(
+                "economic_grid_charge_power_w", 0.0
+            ),
+            "live_solar_surplus_power_w": data.get(
+                "live_solar_surplus_power_w"
+            ),
+            "grid_net_power_w": data.get("grid_net_power_w"),
             "grid_import_power_w": data.get("grid_import_power_w"),
             "grid_import_average_power_w": data.get(
                 "grid_import_average_power_w"
@@ -412,7 +421,7 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
     H3XPredictiveDispatchSensorDescription(
         key="forecast_load_power",
         translation_key="forecast_load_power",
-        name="Forecast load power",
+        name="Next-slot forecast load power",
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
@@ -422,7 +431,7 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
     H3XPredictiveDispatchSensorDescription(
         key="forecast_solar_power",
         translation_key="forecast_solar_power",
-        name="Forecast solar power",
+        name="Next-slot forecast solar power",
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,

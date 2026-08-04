@@ -124,6 +124,7 @@ from .forecast import (
     time_weighted_average,
 )
 from .history import RecorderHistoryLoader
+from .meter import autodetect_shelly_total_active_power
 from .optimizer import (
     OptimizerSettings,
     OptimizerSlot,
@@ -196,6 +197,8 @@ class Decision:
     solar_power_w: float | None = None
     forecast_load_power_w: float | None = None
     forecast_solar_power_w: float | None = None
+    economic_grid_charge_power_w: float = 0.0
+    live_solar_surplus_power_w: float | None = None
     grid_net_power_w: float | None = None
     grid_import_power_w: float | None = None
     grid_import_average_power_w: float | None = None
@@ -247,6 +250,13 @@ class Decision:
             data["forecast_load_power_w"] = round(self.forecast_load_power_w, 1)
         if self.forecast_solar_power_w is not None:
             data["forecast_solar_power_w"] = round(self.forecast_solar_power_w, 1)
+        data["economic_grid_charge_power_w"] = round(
+            self.economic_grid_charge_power_w, 1
+        )
+        if self.live_solar_surplus_power_w is not None:
+            data["live_solar_surplus_power_w"] = round(
+                self.live_solar_surplus_power_w, 1
+            )
         if self.grid_net_power_w is not None:
             data["grid_net_power_w"] = round(self.grid_net_power_w, 1)
         if self.grid_import_power_w is not None:
@@ -943,9 +953,21 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.next_slot_end = current_slot.end.isoformat()
         decision.load_power_w = load_power_w
         decision.solar_power_w = solar_power_w
-        decision.forecast_load_power_w = load_forecast_w[0] if load_forecast_w else None
+        forecast_index = 1 if len(future_slots) > 1 else None
+        decision.forecast_load_power_w = (
+            load_forecast_w[forecast_index]
+            if forecast_index is not None and load_forecast_w
+            else None
+        )
         decision.forecast_solar_power_w = (
-            solar_forecast_w[0] if solar_forecast_w else None
+            solar_forecast_w[forecast_index]
+            if forecast_index is not None and solar_forecast_w
+            else None
+        )
+        decision.live_solar_surplus_power_w = (
+            max(solar_power_w - load_power_w, 0.0)
+            if solar_power_w is not None and load_power_w is not None
+            else None
         )
         (
             decision.grid_import_power_w,
@@ -980,6 +1002,16 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ",".join(grid_entity_ids)
                 ),
                 "grid_import_measurement_source": grid_source,
+                "forecast_power_slot_start": (
+                    future_slots[forecast_index].start.isoformat()
+                    if forecast_index is not None
+                    else None
+                ),
+                "forecast_power_slot_end": (
+                    future_slots[forecast_index].end.isoformat()
+                    if forecast_index is not None
+                    else None
+                ),
                 "grid_import_average_source": "internal_15_minute_recorder_trend",
                 "grid_import_trend_status": self._grid_import_trend_status,
                 "grid_import_trend_w_per_min": (
@@ -1162,6 +1194,16 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.attributes.setdefault(
             "grid_import_limit_w",
             float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
+        )
+        decision.attributes.setdefault(
+            "economic_grid_charge_power_w",
+            round(decision.economic_grid_charge_power_w, 1),
+        )
+        decision.attributes.setdefault(
+            "live_solar_surplus_power_w",
+            round(decision.live_solar_surplus_power_w, 1)
+            if decision.live_solar_surplus_power_w is not None
+            else None,
         )
         self._ensure_capacity_attributes(decision)
         self._set_target_c_rate_attribute(decision)
@@ -1682,21 +1724,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _autodetected_shelly_grid_entity(self) -> str:
         """Find a clearly named Shelly total active-power sensor."""
-        for state in self.hass.states.async_all("sensor"):
-            identity = " ".join(
-                (
-                    state.entity_id,
-                    str((state.attributes or {}).get("friendly_name") or ""),
-                )
-            ).lower()
-            if (
-                "shelly" in identity
-                and "total" in identity
-                and "active" in identity
-                and "power" in identity
-            ):
-                return state.entity_id
-        return ""
+        return autodetect_shelly_total_active_power(self.hass)
 
     def _positive_power_state_w(self, entity_id: str | None) -> float | None:
         """Read a power entity and clamp impossible negative consumption to zero."""
@@ -1891,14 +1919,14 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         first_row = plan[0]
         action = first.action
         command_target_power_w = abs(first.target_power_w)
-        reason = f"{first.intent}: {result.reason}"
-        if action == "charge" and first.intent == "solar_storage":
-            live_surplus_w = (
-                max(current_solar_power_w - current_load_power_w, 0.0)
-                if current_solar_power_w is not None
-                and current_load_power_w is not None
-                else 0.0
-            )
+        live_surplus_w = (
+            max(current_solar_power_w - current_load_power_w, 0.0)
+            if current_solar_power_w is not None
+            and current_load_power_w is not None
+            else 0.0
+        )
+        economic_grid_charge_w = 0.0
+        if action == "charge":
             planned_solar_charge_w = min(
                 command_target_power_w,
                 max(-first.grid_without_battery_w, 0.0),
@@ -1907,6 +1935,13 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 command_target_power_w - planned_solar_charge_w,
                 0.0,
             )
+            first_row["live_surplus_w"] = round(live_surplus_w, 1)
+            first_row["economic_grid_charge_w"] = round(
+                economic_grid_charge_w,
+                1,
+            )
+        reason = f"{first.intent}: {result.reason}"
+        if action == "charge" and first.intent == "solar_storage":
             command_target_power_w = live_solar_charge_target_w(
                 command_target_power_w,
                 current_solar_power_w,
@@ -1935,11 +1970,6 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "live_hybrid_following"
                 if economic_grid_charge_w > 0
                 else "live_surplus_following"
-            )
-            first_row["live_surplus_w"] = round(live_surplus_w, 1)
-            first_row["economic_grid_charge_w"] = round(
-                economic_grid_charge_w,
-                1,
             )
             first_row["live_target_power_w"] = round(command_target_power_w, 1)
 
@@ -1979,6 +2009,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if action != "idle"
                 else 0.0
             ),
+            economic_grid_charge_power_w=economic_grid_charge_w,
+            live_solar_surplus_power_w=live_surplus_w,
             estimated_first_slot_value=float(first_row["value"]),
             estimated_plan_value=result.estimated_savings,
             estimated_today_value=today_value,

@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.3` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.4` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -151,6 +151,8 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 
 The `next_charge_slot`, `next_discharge_slot`, and `periodic_full_charge_slot` sensors expose the first planned slot as the state and keep `start`, `end`, `energy_kwh`, `target_power_w`, `price`, `value`, `grid_charge_kwh`, `solar_charge_kwh`, `self_consumption_kwh`, and `battery_export_kwh` in attributes.
 
+Live load and solar sensors are measurements at the current update. The forecast load and solar sensors represent the next price interval, not the calibrated current interval; the decision attributes expose that interval's start and end. Current economic grid-charge power and measured solar surplus are always present on the decision entity, including as `0 W` when inactive, instead of appearing only on a current solar-charge plan row.
+
 The `price_plan` sensor is a unitless diagnostic carrier for Lovelace charting. It carries `price_slots`, `price_trend`, `load_forecast`, `solar_forecast`, and `dispatch_plan` attributes, and those large chart arrays are excluded from recorder history to keep the Home Assistant database small. `price_trend` is a rolling trendline over the price slots with `trend_price`, `delta_next`, and `trend_direction` values. Currency values use the resolved Nord Pool ISO 4217 currency code, for example `EUR` or `DKK`.
 
 ## Runtime Controls
@@ -212,7 +214,7 @@ Because the SMA PV inverter and Pylontech battery inverter are separate AC syste
 
 Solcast forecasts are cached across Home Assistant restarts and refresh every six hours by default, keeping hobbyist usage below the published daily request allowance. A valid cached forecast survives temporary API failures. `auto` falls back to the local panel/orientation model when Solcast is not configured or unavailable.
 
-Shelly Pro 3EM `total_active_power` is signed at the grid connection. The controller preserves its sign while reading the source, treats positive power as import, and clamps negative export to `0 W` only for import-limit calculations. If a configured grid entity is unavailable, it falls back to the configured Shelly total and then to the sum of all three configured phase sensors. Use the Shelly grid diagnostics status sensor to distinguish `recorder_history`, `live_only`, `entity_unavailable`, and `shelly_meter_not_configured`; its attributes include the selected source, entity IDs, sample count, sample span, and import limit.
+Shelly Pro 3EM `total_active_power` is signed at the grid connection. The controller preserves its sign while reading the source, treats positive power as import, and clamps negative export to `0 W` only for import-limit calculations. If a configured grid entity is unavailable, it falls back to the configured Shelly total and then to the sum of all three configured phase sensors. Auto-detection uses Home Assistant's entity registry and the Shelly `total_act_power` unique ID, so renaming the entity does not hide it. Multiple matching Shelly grid meters are intentionally treated as ambiguous and require explicit selection. Use the Shelly grid diagnostics status sensor to distinguish `recorder_history`, `live_only`, `entity_unavailable`, and `shelly_meter_not_configured`; its attributes include the selected source, entity IDs, sample count, sample span, and import limit.
 
 Discharge duration is decided inside the optimizer. The `conservative`, `typical`, and `aggressive` profiles change power candidates, terminal reserve, forecast risk, minimum action duration, and action penalties. A larger battery can therefore support both morning and evening peaks when two independent cycles remain profitable after losses and wear, while flat or marginal price spreads remain idle.
 
