@@ -5,8 +5,51 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, PLATFORMS
+from .const import (
+    CONF_RESOLUTION,
+    DEFAULT_RESOLUTION,
+    DOMAIN,
+    PLATFORMS,
+    RESOLUTIONS,
+)
 from .coordinator import H3XPredictiveDispatchCoordinator
+
+
+CONFIG_ENTRY_VERSION = 2
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> bool:
+    """Persist the price resolution for entries created by version 1."""
+    if entry.version > CONFIG_ENTRY_VERSION:
+        return False
+    if entry.version == CONFIG_ENTRY_VERSION:
+        return True
+
+    data = dict(entry.data)
+    options = dict(entry.options)
+    raw_resolution = options.get(
+        CONF_RESOLUTION,
+        data.get(CONF_RESOLUTION, DEFAULT_RESOLUTION),
+    )
+    try:
+        resolution = int(raw_resolution)
+    except (TypeError, ValueError):
+        resolution = DEFAULT_RESOLUTION
+    if resolution not in RESOLUTIONS:
+        resolution = DEFAULT_RESOLUTION
+
+    data[CONF_RESOLUTION] = resolution
+    if CONF_RESOLUTION in options:
+        options[CONF_RESOLUTION] = resolution
+    hass.config_entries.async_update_entry(
+        entry,
+        data=data,
+        options=options,
+        version=CONFIG_ENTRY_VERSION,
+    )
+    return True
 
 
 async def async_setup_entry(

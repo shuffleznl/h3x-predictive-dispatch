@@ -95,6 +95,7 @@ from .const import (
     CONF_USER_EMS_MODE,
     CONF_VAT_PERCENT,
     DEFAULTS,
+    DEFAULT_RESOLUTION,
     DOMAIN,
     FORCE_H3_MAX_MODULES,
     FORCE_H3_MIN_MODULES,
@@ -106,6 +107,7 @@ from .const import (
     NORDPOOL_CONF_CURRENCY,
     NORDPOOL_DOMAIN,
     PV_ORIENTATIONS,
+    RESOLUTIONS,
     STRATEGY_PROFILE_SETTINGS,
 )
 from .forecast import ForecastBand, HistoricalLoadForecaster, LoadForecast
@@ -366,7 +368,11 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             decision = self._compute_decision(slots)
         except Exception as err:  # pylint: disable=broad-except
             LOGGER.exception("Failed to compute arbitrage decision")
-            decision = Decision(action="failsafe", reason=str(err))
+            decision = Decision(
+                action="failsafe",
+                reason=str(err),
+                resolution_minutes=self._configured_resolution_minutes(),
+            )
 
         self._finalize_decision_diagnostics(decision)
         self._update_battery_capacity_issue(decision)
@@ -441,7 +447,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         entry_id = self._resolve_nordpool_entry_id()
         area = self._resolve_area()
         currency = self._resolve_currency()
-        resolution = int(self._option(CONF_RESOLUTION))
+        resolution = self._configured_resolution_minutes()
         self._last_price_fetch_errors = []
 
         today = dt_util.now().date()
@@ -771,7 +777,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "discharge_spread_max_hours": float(
                     self._option(CONF_DISCHARGE_SPREAD_MAX_HOURS)
                 ),
-                "nordpool_resolution_minutes": int(self._option(CONF_RESOLUTION)),
+                "nordpool_resolution_minutes": (
+                    self._configured_resolution_minutes()
+                ),
                 "price_fetch_errors": list(self._last_price_fetch_errors),
                 **self._price_trend_attributes(future_slots),
                 "price_slots": [
@@ -828,9 +836,23 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _finalize_decision_diagnostics(self, decision: Decision) -> None:
         """Attach always-on diagnostics used by UI sensors and dashboards."""
+        configured_resolution = self._configured_resolution_minutes()
+        if decision.resolution_minutes is None:
+            decision.resolution_minutes = configured_resolution
+        decision.attributes.setdefault(
+            "nordpool_resolution_minutes", configured_resolution
+        )
         self._ensure_capacity_attributes(decision)
         self._set_target_c_rate_attribute(decision)
         self._attach_plan_summaries(decision)
+
+    def _configured_resolution_minutes(self) -> int:
+        """Return a valid persisted Nord Pool resolution."""
+        try:
+            resolution = int(self._option(CONF_RESOLUTION))
+        except (TypeError, ValueError):
+            return DEFAULT_RESOLUTION
+        return resolution if resolution in RESOLUTIONS else DEFAULT_RESOLUTION
 
     def _ensure_capacity_attributes(self, decision: Decision) -> None:
         """Keep capacity diagnostics available even when price fetching fails."""
@@ -1507,8 +1529,6 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             },
         )
         return decision
-
-    @staticmethod
 
     def _solar_forecast_for_slots(
         self,

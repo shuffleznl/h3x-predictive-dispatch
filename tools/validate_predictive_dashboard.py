@@ -7,11 +7,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD = ROOT / "dashboards" / "h3x-predictive-dispatch.yaml"
+PACKAGED_DASHBOARD = (
+    ROOT
+    / "custom_components"
+    / "h3x_predictive_dispatch"
+    / "dashboards"
+    / "h3x-predictive-dispatch.yaml"
+)
 
 
 def main() -> None:
     """Reject cross-domain entity collisions and missing predictive controls."""
     source = DASHBOARD.read_text(encoding="utf-8")
+    if not PACKAGED_DASHBOARD.exists():
+        raise AssertionError("HACS-packaged predictive dashboard is missing")
+    if PACKAGED_DASHBOARD.read_text(encoding="utf-8") != source:
+        raise AssertionError("repository and HACS-packaged dashboards differ")
     required = (
         "title: H3X Predictive Dispatch",
         "sensor.pylontech_h3x_predictive_dispatch_decision",

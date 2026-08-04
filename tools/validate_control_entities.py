@@ -141,8 +141,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.1.0"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.1.0")
+    if '"version": "0.1.1"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.1.1")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -151,6 +151,16 @@ def main() -> None:
         raise AssertionError("Nord Pool price fetch must fall back to hourly prices")
     if "{CONF_NORDPOOL_CONFIG_ENTRY: entry.entry_id}" in config_flow_source:
         raise AssertionError("setup defaults must not persist a volatile Nord Pool entry id")
+    if "VERSION = 2" not in config_flow_source:
+        raise AssertionError("config flow version must migrate persisted resolution")
+    if "_normalize_resolution(user_input)" not in config_flow_source:
+        raise AssertionError("config flow must normalize the submitted resolution")
+    if "async_migrate_entry" not in init_source:
+        raise AssertionError("version 1 entries need a resolution migration")
+    if "data[CONF_RESOLUTION] = resolution" not in init_source:
+        raise AssertionError("migration must persist the configured resolution")
+    if "_configured_resolution_minutes" not in coordinator_source:
+        raise AssertionError("coordinator must expose configured resolution fallback")
     if 'key="discharge_power_mode"' not in read(INTEGRATION / "select.py"):
         raise AssertionError("discharge power mode select is missing")
     if 'key="pv_orientation"' not in read(INTEGRATION / "select.py"):

@@ -48,6 +48,12 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 4. Go to **Settings > Devices & services > Add integration**.
 5. Add **Pylontech H3X Predictive Dispatch** and review the detected Nord Pool area and Pylontech H3X Bridge entity IDs.
 
+## Dashboard Updates
+
+Version `0.1.1` and newer package the matching dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+
+The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
+
 ## Safe First Run
 
 Set **Enable automatic control** to off for the first run. The integration will still compute and expose decisions, prices, planned charge/discharge energy, and estimated value, but it will not write to the H3X entities.

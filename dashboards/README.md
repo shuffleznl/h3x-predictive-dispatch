@@ -26,10 +26,12 @@ The dashboard uses ApexCharts for price, dispatch, forecast, power, and SOC hist
 
 ## Install The YAML Dashboard
 
-Copy `dashboards/h3x-predictive-dispatch.yaml` into your Home Assistant config directory, for example:
+Predictive Dispatch `v0.1.1` and newer package the dashboard inside the
+HACS-managed integration directory. Point Home Assistant directly at that copy
+so future HACS upgrades refresh the dashboard automatically:
 
 ```text
-config/dashboards/h3x-predictive-dispatch.yaml
+config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml
 ```
 
 Then add this to `configuration.yaml`:
@@ -43,10 +45,11 @@ lovelace:
       title: H3X Predictive Dispatch
       icon: mdi:battery-charging-70
       show_in_sidebar: true
-      filename: dashboards/h3x-predictive-dispatch.yaml
+      filename: custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml
 ```
 
-Restart Home Assistant or reload Lovelace resources after installing `apexcharts-card`.
+Restart Home Assistant after changing the filename. After later HACS upgrades,
+refresh the browser once the integration files have been replaced.
 
 ## Planned Slot Display
 
@@ -56,7 +59,7 @@ Planned values can change when Nord Pool publishes new prices, the battery SOC c
 
 ## PV And Load Display
 
-The dashboard requires `h3x_predictive_dispatch` `0.1.0` or newer. If
+The dashboard requires `h3x_predictive_dispatch` `0.1.1` or newer. If
 historical data has not accumulated yet, the optimizer uses its live-load
 fallback and forecast-quality cards remain unavailable until Recorder has
 enough samples.

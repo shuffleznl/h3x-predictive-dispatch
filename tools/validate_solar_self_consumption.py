@@ -30,6 +30,21 @@ def main() -> None:
     for path in INTEGRATION.glob("*.py"):
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
+    coordinator_tree = ast.parse(coordinator_source)
+    solar_method = next(
+        node
+        for node in ast.walk(coordinator_tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_solar_forecast_for_slots"
+    )
+    if any(
+        isinstance(decorator, ast.Name) and decorator.id == "staticmethod"
+        for decorator in solar_method.decorator_list
+    ):
+        raise AssertionError("solar forecast must remain an instance method")
+    if not solar_method.args.args or solar_method.args.args[0].arg != "self":
+        raise AssertionError("solar forecast instance binding is missing")
+
     for token in (
         "CONF_SHELLY_TOTAL_POWER_ENTITY",
         "CONF_SHELLY_PHASE_A_POWER_ENTITY",

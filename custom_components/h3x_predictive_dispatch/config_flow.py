@@ -113,7 +113,7 @@ from .const import (
 class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -122,6 +122,7 @@ class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            user_input = _normalize_resolution(user_input)
             user_input = _apply_module_count_settings(user_input)
             user_input = _apply_profile_when_changed(user_input)
             errors = _validate_user_input(user_input)
@@ -159,6 +160,7 @@ class H3XPredictiveDispatchOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            user_input = _normalize_resolution(user_input)
             user_input = _apply_module_count_settings(user_input)
             user_input = _apply_profile_when_changed(user_input, current)
             errors = _validate_user_input(user_input)
@@ -180,6 +182,7 @@ def _schema(
     data = {**DEFAULTS, **_autodetected_defaults(hass)}
     if values:
         data.update(values)
+    data = _normalize_resolution(data)
     data = _apply_module_count_settings(data)
 
     return vol.Schema(
@@ -489,6 +492,19 @@ def _apply_profile_when_changed(
         updated.update(STRATEGY_PROFILE_SETTINGS[profile])
         return updated
     return data
+
+
+def _normalize_resolution(data: dict[str, Any]) -> dict[str, Any]:
+    """Keep the configured Nord Pool resolution as a supported integer."""
+    updated = dict(data)
+    try:
+        resolution = int(updated.get(CONF_RESOLUTION, DEFAULTS[CONF_RESOLUTION]))
+    except (TypeError, ValueError):
+        resolution = int(DEFAULTS[CONF_RESOLUTION])
+    updated[CONF_RESOLUTION] = (
+        resolution if resolution in RESOLUTIONS else int(DEFAULTS[CONF_RESOLUTION])
+    )
+    return updated
 
 
 def _apply_module_count_settings(data: dict[str, Any]) -> dict[str, Any]:

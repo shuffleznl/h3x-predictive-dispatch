@@ -56,6 +56,7 @@ def main() -> None:
 
     for path in (
         ROOT / "README.md",
+        custom_components / DOMAIN / "dashboards" / "h3x-predictive-dispatch.yaml",
         custom_components / DOMAIN / "strings.json",
         custom_components / DOMAIN / "translations" / "en.json",
     ):
