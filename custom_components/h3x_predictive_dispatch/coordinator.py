@@ -121,6 +121,7 @@ from .forecast import (
     HistoricalLoadForecaster,
     LoadForecast,
     PowerObservation,
+    time_weighted_average,
 )
 from .history import RecorderHistoryLoader
 from .optimizer import (
@@ -292,6 +293,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._grid_import_average_power_w: float | None = None
         self._grid_import_trend_w_per_min: float | None = None
         self._grid_import_sample_count = 0
+        self._grid_import_sample_span_minutes = 0.0
+        self._grid_import_trend_status = "not_loaded"
         self._solcast_forecast: list[SolcastInterval] = []
         self._solcast_fetched_at: datetime | None = None
         self._solcast_last_attempt_at: datetime | None = None
@@ -460,17 +463,33 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._grid_import_average_power_w = None
             self._grid_import_trend_w_per_min = None
             self._grid_import_sample_count = 0
+            self._grid_import_sample_span_minutes = 0.0
+            self._grid_import_trend_status = (
+                "entity_unavailable" if entity_id else "entity_not_configured"
+            )
             return
 
+        window_start = now - timedelta(minutes=15)
         deduplicated: dict[datetime, float] = {
-            row.timestamp: row.load_w for row in samples
+            min(max(row.timestamp, window_start), now): row.load_w for row in samples
         }
         ordered = sorted(deduplicated.items())
         values = [value for _timestamp, value in ordered]
-        self._grid_import_average_power_w = sum(values) / len(values)
+        self._grid_import_average_power_w = time_weighted_average(
+            ordered,
+            start=window_start,
+            end=now,
+        )
         self._grid_import_sample_count = len(values)
+        self._grid_import_sample_span_minutes = max(
+            (ordered[-1][0] - max(ordered[0][0], window_start)).total_seconds() / 60,
+            0.0,
+        )
         if len(ordered) < 2:
             self._grid_import_trend_w_per_min = 0.0
+            self._grid_import_trend_status = (
+                "live_only" if current is not None else "history_only_live_unavailable"
+            )
             return
 
         origin = ordered[0][0]
@@ -488,6 +507,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             / denominator
             if denominator > 0
             else 0.0
+        )
+        self._grid_import_trend_status = (
+            "recorder_history" if current is not None else "history_only_live_unavailable"
         )
 
     async def _async_refresh_solcast_forecast(self) -> None:
@@ -921,6 +943,11 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             str(self._option(CONF_GRID_IMPORT_POWER_ENTITY))
         )
         decision.grid_import_average_power_w = self._grid_import_average_power_w
+        decision.grid_charge_headroom_w = self._grid_charge_headroom_w(
+            load_power_w=decision.load_power_w,
+            grid_import_power_w=decision.grid_import_power_w,
+            grid_import_average_power_w=decision.grid_import_average_power_w,
+        )
         decision.updated_at = now.isoformat()
         decision.attributes.update(
             {
@@ -940,12 +967,17 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._option(CONF_GRID_IMPORT_POWER_ENTITY)
                 ),
                 "grid_import_average_source": "internal_15_minute_recorder_trend",
+                "grid_import_trend_status": self._grid_import_trend_status,
                 "grid_import_trend_w_per_min": (
                     round(self._grid_import_trend_w_per_min, 1)
                     if self._grid_import_trend_w_per_min is not None
                     else None
                 ),
                 "grid_import_trend_samples": self._grid_import_sample_count,
+                "grid_import_trend_span_minutes": round(
+                    self._grid_import_sample_span_minutes,
+                    1,
+                ),
                 "load_power_entity": str(self._option(CONF_LOAD_POWER_ENTITY)),
                 "home_load_power_source": load_source,
                 "shelly_total_power_entity": str(
@@ -1037,12 +1069,6 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return self._idle_from(decision, temp_reason or "discharging not allowed")
 
         if decision.action in {"charge", "discharge"}:
-            if decision.action == "charge":
-                decision.grid_charge_headroom_w = self._grid_charge_headroom_w(
-                    load_power_w=decision.load_power_w,
-                    grid_import_power_w=decision.grid_import_power_w,
-                    grid_import_average_power_w=decision.grid_import_average_power_w,
-                )
             limited_power = self._apply_grid_limit(
                 decision.action,
                 decision.target_power_w,
@@ -1073,6 +1099,46 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             decision.resolution_minutes = configured_resolution
         decision.attributes.setdefault(
             "nordpool_resolution_minutes", configured_resolution
+        )
+        grid_entity = str(self._option(CONF_GRID_IMPORT_POWER_ENTITY)).strip()
+        if decision.grid_import_power_w is None:
+            decision.grid_import_power_w = self._power_state_w(grid_entity)
+        if decision.grid_import_average_power_w is None:
+            decision.grid_import_average_power_w = self._grid_import_average_power_w
+        load_power_w = decision.load_power_w
+        if load_power_w is None:
+            load_power_w, _load_source = self._home_load_power_w()
+        decision.grid_charge_headroom_w = self._grid_charge_headroom_w(
+            load_power_w=load_power_w,
+            grid_import_power_w=decision.grid_import_power_w,
+            grid_import_average_power_w=decision.grid_import_average_power_w,
+        )
+        decision.attributes.setdefault("grid_import_power_entity", grid_entity)
+        decision.attributes.setdefault(
+            "grid_import_average_source",
+            "internal_15_minute_recorder_trend",
+        )
+        decision.attributes.setdefault(
+            "grid_import_trend_status",
+            self._grid_import_trend_status,
+        )
+        decision.attributes.setdefault(
+            "grid_import_trend_w_per_min",
+            round(self._grid_import_trend_w_per_min, 1)
+            if self._grid_import_trend_w_per_min is not None
+            else None,
+        )
+        decision.attributes.setdefault(
+            "grid_import_trend_samples",
+            self._grid_import_sample_count,
+        )
+        decision.attributes.setdefault(
+            "grid_import_trend_span_minutes",
+            round(self._grid_import_sample_span_minutes, 1),
+        )
+        decision.attributes.setdefault(
+            "grid_import_limit_w",
+            float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
         )
         self._ensure_capacity_attributes(decision)
         self._set_target_c_rate_attribute(decision)
@@ -1241,6 +1307,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
             "planned_target_power_w": planned_target_w,
             "live_surplus_w": row.get("live_surplus_w"),
+            "economic_grid_charge_w": row.get("economic_grid_charge_w"),
             "value": row.get("value"),
             "price": row.get("price"),
             "grid_charge_kwh": row.get("grid_charge_kwh"),
@@ -1550,11 +1617,22 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ev_mode=ev_mode,
             ev_threshold_w=float(self._option(CONF_EV_CHARGING_THRESHOLD_W)),
         )
-        return forecaster.forecast(
+        forecast = forecaster.forecast(
             future_slots,
             current_load_w=current_load_w,
             current_ev_w=ev_power,
         )
+        if current_load_w is not None and forecast.bands:
+            current = max(current_load_w, 0.0)
+            forecast.bands[0] = ForecastBand(
+                p10_w=current * 0.9,
+                p50_w=current,
+                p90_w=current * 1.1,
+                samples=max(forecast.bands[0].samples, 1),
+                confidence=0.95,
+                ev_w=forecast.bands[0].ev_w,
+            )
+        return forecast
 
     @staticmethod
     def _solar_forecast_bands(
@@ -1718,10 +1796,19 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 and current_load_power_w is not None
                 else 0.0
             )
+            planned_solar_charge_w = min(
+                command_target_power_w,
+                max(-first.grid_without_battery_w, 0.0),
+            )
+            economic_grid_charge_w = max(
+                command_target_power_w - planned_solar_charge_w,
+                0.0,
+            )
             command_target_power_w = live_solar_charge_target_w(
                 command_target_power_w,
                 current_solar_power_w,
                 current_load_power_w,
+                economic_grid_charge_w=economic_grid_charge_w,
             )
             if command_target_power_w < float(
                 self._option(CONF_MIN_ACTIVE_POWER_W)
@@ -1734,11 +1821,23 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             else:
                 reason = (
-                    "live SMA surplus charge; forced target follows measured "
+                    "hybrid solar/grid charge; live surplus is combined with "
+                    f"{economic_grid_charge_w:.0f} W of economically optimized "
+                    "grid charging"
+                    if economic_grid_charge_w > 0
+                    else "live SMA surplus charge; forced target follows measured "
                     "solar minus home load"
                 )
-            first_row["execution"] = "live_surplus_following"
+            first_row["execution"] = (
+                "live_hybrid_following"
+                if economic_grid_charge_w > 0
+                else "live_surplus_following"
+            )
             first_row["live_surplus_w"] = round(live_surplus_w, 1)
+            first_row["economic_grid_charge_w"] = round(
+                economic_grid_charge_w,
+                1,
+            )
             first_row["live_target_power_w"] = round(command_target_power_w, 1)
 
         today = dt_util.now().date()
@@ -2044,19 +2143,17 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return None
 
         has_load_power = load_power_w is not None
-        load_power = max(load_power_w or 0.0, 0.0)
-        limits = [max(import_limit - load_power, 0.0)]
         grid_readings = [
             max(value, 0.0)
             for value in (grid_import_power_w, grid_import_average_power_w)
             if value is not None
         ]
         if grid_readings:
-            current_charge_w = (
-                self._requested_charge_power_w() if has_load_power else 0.0
-            )
-            limits.append(max(import_limit - max(grid_readings) + current_charge_w, 0.0))
-        return min(limits)
+            current_charge_w = self._requested_charge_power_w()
+            return max(import_limit - max(grid_readings) + current_charge_w, 0.0)
+        if has_load_power:
+            return max(import_limit - max(load_power_w or 0.0, 0.0), 0.0)
+        return None
 
     def _requested_charge_power_w(self) -> float:
         """Return the currently requested battery charge power, if known."""
@@ -2256,6 +2353,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "unavailable",
                     "grid limit",
                     "not allowed",
+                    "solar storage planned",
                 )
             )
         )

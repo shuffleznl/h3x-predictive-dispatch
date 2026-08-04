@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.1` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.2` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -197,11 +197,15 @@ The optimizer supports:
 
 Default power settings are `11 kW` continuous and `13.8 kW` peak, with peak power only used when the price spread clears the configured extra margin. C-rate caps are applied after those economic limits: for a 6-module pack with `29.17 kWh` usable capacity, `0.5C` is `14.6 kW`, so the inverter peak still limits the final setpoint. The default grid import limit is `17.5 kW`; set it to `0` in options to disable the import guard.
 
-Charging is not intentionally spread across many hours. The optimizer still charges at the cheapest economic speed, capped by inverter power, the configured charge C-rate, BMS temperature, SOC limits, and the grid import limit. Charging headroom uses the most conservative of the live import reading and its internal Recorder-derived average and accounts for any already-requested battery charge power.
+Charging is not intentionally spread across many hours. The rolling optimizer charges at the cheapest economic speed needed to support later household consumption or export, capped by inverter power, the configured charge C-rate, BMS temperature, SOC limits, and the grid import limit. When a slot contains both PV surplus and economically justified grid energy, the live target combines the measured PV surplus with only the grid-charge component selected by the optimizer. If PV falls, that economic grid component continues; lost PV is not blindly replaced with uneconomic grid energy.
+
+Charging headroom is calculated continuously. A configured live grid meter is preferred and the internal time-weighted 15-minute average guards against a transient low reading; the current battery charge command is accounted for so repeated updates do not progressively reduce the same target. Household load is used only when the grid meter is unavailable.
 
 Because the SMA PV inverter and Pylontech battery inverter are separate AC systems, H3X self-consumption mode cannot infer SMA surplus. For a `solar_storage` slot the controller therefore issues an explicit H3X charge command capped by live SMA power minus live home load and a safety margin. If measured surplus falls below minimum active power, it idles instead of importing from the grid. Solcast affects future planning; the live SMA and load readings govern the current surplus-following command.
 
 Solcast forecasts are cached across Home Assistant restarts and refresh every six hours by default, keeping hobbyist usage below the published daily request allowance. A valid cached forecast survives temporary API failures. `auto` falls back to the local panel/orientation model when Solcast is not configured or unavailable.
+
+The default DSMR `currently delivered` sensor is import-only. It correctly reads `0 W` while the installation is exporting, and a stable series correctly produces a `0 W/min` trend. Use the Grid diagnostics status sensor to distinguish this from missing data: `recorder_history` means the internal average and slope have history, `live_only` means only the current reading was available, and `entity_unavailable` means the configured grid-import entity is missing or unavailable. The status attributes include the entity ID, sample count, sample span, and configured import limit.
 
 Discharge duration is decided inside the optimizer. The `conservative`, `typical`, and `aggressive` profiles change power candidates, terminal reserve, forecast risk, minimum action duration, and action penalties. A larger battery can therefore support both morning and evening peaks when two independent cycles remain profitable after losses and wear, while flat or marginal price spreads remain idle.
 

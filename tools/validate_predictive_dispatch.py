@@ -36,6 +36,7 @@ tariff_module = load_module("tariff")
 ForecastBand = forecast_module.ForecastBand
 HistoricalLoadForecaster = forecast_module.HistoricalLoadForecaster
 PowerObservation = forecast_module.PowerObservation
+time_weighted_average = forecast_module.time_weighted_average
 OptimizerSettings = optimizer_module.OptimizerSettings
 OptimizerSlot = optimizer_module.OptimizerSlot
 PredictiveDispatchOptimizer = optimizer_module.PredictiveDispatchOptimizer
@@ -187,10 +188,62 @@ def validate_solcast_alignment() -> None:
 
 
 def validate_live_solar_surplus_target() -> None:
-    """AC-coupled PV must produce an explicit surplus-limited charge target."""
+    """Live PV loss must retain only the economically optimized grid component."""
     assert live_solar_charge_target_w(4000.0, 3000.0, 1200.0) == 1700.0
     assert live_solar_charge_target_w(4000.0, 1000.0, 1200.0) == 0.0
     assert live_solar_charge_target_w(4000.0, None, 1200.0) == 0.0
+    assert (
+        live_solar_charge_target_w(
+            4000.0,
+            3000.0,
+            1200.0,
+            economic_grid_charge_w=900.0,
+        )
+        == 2600.0
+    )
+    assert (
+        live_solar_charge_target_w(
+            4000.0,
+            0.0,
+            1200.0,
+            economic_grid_charge_w=900.0,
+        )
+        == 900.0
+    )
+    assert (
+        live_solar_charge_target_w(
+            4000.0,
+            None,
+            1200.0,
+            economic_grid_charge_w=900.0,
+        )
+        == 900.0
+    )
+
+
+def validate_low_solar_grid_charge() -> None:
+    """Cheap grid energy must charge before an expensive no-solar window."""
+    result = PredictiveDispatchOptimizer().optimize(
+        slots([0.03] * 8 + [0.48] * 8),
+        settings(initial_energy_kwh=8.0, terminal_energy_kwh=8.0),
+    )
+    charge_rows = [row for row in result.schedule[:8] if row.action == "charge"]
+    assert charge_rows
+    assert all(row.intent == "grid_arbitrage" for row in charge_rows)
+    assert any(row.action == "discharge" for row in result.schedule[8:])
+
+
+def validate_time_weighted_grid_average() -> None:
+    """Irregular grid samples must not receive equal statistical weight."""
+    start = datetime(2026, 8, 3, tzinfo=timezone.utc)
+    end = start + timedelta(minutes=15)
+    average = time_weighted_average(
+        [(start, 1000.0), (start + timedelta(minutes=5), 2000.0)],
+        start=start,
+        end=end,
+    )
+    assert average is not None
+    assert abs(average - 1666.6666667) < 0.001
 
 
 def _windows(schedule: list[object], action: str) -> list[int]:
@@ -213,6 +266,8 @@ def main() -> None:
     validate_ev_detection()
     validate_solcast_alignment()
     validate_live_solar_surplus_target()
+    validate_low_solar_grid_charge()
+    validate_time_weighted_grid_average()
     print("predictive dispatch simulations passed")
 
 

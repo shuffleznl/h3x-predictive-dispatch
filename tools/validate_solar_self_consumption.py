@@ -76,6 +76,8 @@ def main() -> None:
         "_grid_charge_headroom_w",
         "live SMA surplus charge",
         "live_surplus_following",
+        "live_hybrid_following",
+        "economic_grid_charge_w",
         "_async_refresh_grid_import_trend",
         "_async_refresh_solcast_forecast",
         "_solcast_status",

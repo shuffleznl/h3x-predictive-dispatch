@@ -42,7 +42,7 @@ class RecorderHistoryLoader:
                 end,
                 [entity_id],
                 None,
-                False,
+                True,
                 False,
                 False,
                 True,

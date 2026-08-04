@@ -84,6 +84,30 @@ def _day_class(timestamp: datetime) -> int:
     return 1 if timestamp.weekday() >= 5 else 0
 
 
+def time_weighted_average(
+    samples: list[tuple[datetime, float]],
+    *,
+    start: datetime,
+    end: datetime,
+) -> float | None:
+    """Average irregular state samples by the time each value was active."""
+    if not samples:
+        return None
+    ordered = sorted(samples)
+    if len(ordered) < 2:
+        return ordered[0][1]
+    weighted_sum = 0.0
+    duration_sum = 0.0
+    for index, (timestamp, value) in enumerate(ordered):
+        next_timestamp = ordered[index + 1][0] if index + 1 < len(ordered) else end
+        active_from = max(timestamp, start)
+        active_until = min(next_timestamp, end)
+        duration = max((active_until - active_from).total_seconds(), 0.0)
+        weighted_sum += value * duration
+        duration_sum += duration
+    return weighted_sum / duration_sum if duration_sum > 0 else ordered[-1][1]
+
+
 class HistoricalLoadForecaster:
     """Recency-weighted robust ensemble with optional EV separation.
 

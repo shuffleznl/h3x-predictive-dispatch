@@ -190,14 +190,20 @@ def live_solar_charge_target_w(
     current_solar_power_w: float | None,
     current_load_power_w: float | None,
     *,
+    economic_grid_charge_w: float = 0.0,
     safety_margin_w: float = 100.0,
 ) -> float:
-    """Cap forced charging at measured AC-coupled PV surplus."""
+    """Combine live AC-coupled PV surplus with optimized grid charging."""
+    planned_target_w = max(planned_target_w, 0.0)
+    economic_grid_charge_w = min(
+        max(economic_grid_charge_w, 0.0),
+        planned_target_w,
+    )
     if current_solar_power_w is None or current_load_power_w is None:
-        return 0.0
+        return economic_grid_charge_w
     measured_surplus_w = max(current_solar_power_w - current_load_power_w, 0.0)
     usable_surplus_w = max(measured_surplus_w - max(safety_margin_w, 0.0), 0.0)
-    return min(max(planned_target_w, 0.0), usable_surplus_w)
+    return min(planned_target_w, economic_grid_charge_w + usable_surplus_w)
 
 
 class PredictiveDispatchOptimizer:

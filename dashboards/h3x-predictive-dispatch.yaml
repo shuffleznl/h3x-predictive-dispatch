@@ -72,6 +72,20 @@ views:
             attribute: energy_kwh
             name: Charge energy
             suffix: kWh
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
+            attribute: intent
+            name: Charge source decision
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
+            attribute: economic_grid_charge_w
+            name: Economic grid component
+            suffix: W
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
+            attribute: live_surplus_w
+            name: Live solar surplus
+            suffix: W
           - entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
             name: Active or next discharge
           - type: attribute
@@ -219,30 +233,31 @@ views:
         title: Grid trend and limits
         show_header_toggle: false
         entities:
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: grid_import_power_w
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
             name: Current grid import
-            suffix: W
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: grid_import_average_power_w
-            name: Internal 15-minute average
-            suffix: W
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: grid_import_trend_w_per_min
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
+            name: Time-weighted 15-minute average
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_trend
             name: Import trend
-            suffix: W/min
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: grid_import_trend_samples
-            name: Trend samples
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: grid_charge_headroom_w
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
+            name: Available battery charge headroom
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            name: Recorder diagnostics
+          - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit
+            name: Grid import limit
+          - entity: number.pylontech_h3x_predictive_dispatch_grid_export_limit
+            name: Grid export limit
+
+      - type: history-graph
+        title: Grid import and charge headroom
+        hours_to_show: 24
+        entities:
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
+            name: Current import
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
+            name: 15-minute average
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
             name: Charge headroom
-            suffix: W
 
       - type: entities
         title: Arbitrage diagnostics

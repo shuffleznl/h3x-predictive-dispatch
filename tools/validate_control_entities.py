@@ -145,8 +145,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.1"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.1")
+    if '"version": "0.2.2"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.2")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -186,6 +186,8 @@ def main() -> None:
         "pv_panel_wp",
         "pv_inverter_limit",
         "solcast_update_interval",
+        "grid_import_limit",
+        "grid_export_limit",
     ):
         if token not in number_source:
             raise AssertionError(f"{token} number control is missing")
@@ -205,6 +207,11 @@ def main() -> None:
         'key="planned_solar_charge_energy"',
         'key="planned_self_consumption_energy"',
         'key="planned_battery_export_energy"',
+        'key="grid_import_power"',
+        'key="grid_import_average_power"',
+        'key="grid_import_trend"',
+        'key="grid_charge_headroom"',
+        'key="grid_diagnostics_status"',
     ):
         if token not in sensor_source:
             raise AssertionError(f"{token} sensor is missing")

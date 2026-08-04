@@ -213,6 +213,11 @@
       "solar_power": {
         "name": "Solar power"
       },
+      "grid_import_power": {"name": "Grid import power"},
+      "grid_import_average_power": {"name": "Grid import 15-minute average"},
+      "grid_import_trend": {"name": "Grid import trend"},
+      "grid_charge_headroom": {"name": "Grid charge headroom"},
+      "grid_diagnostics_status": {"name": "Grid diagnostics status"},
       "forecast_load_power": {
         "name": "Forecast load power"
       },
@@ -314,6 +319,8 @@
       "load_history_days": {"name": "Load history window"},
       "solcast_update_interval": {"name": "Solcast refresh interval"},
       "ev_charging_threshold": {"name": "EV detection threshold"},
+      "grid_import_limit": {"name": "Grid import limit"},
+      "grid_export_limit": {"name": "Grid export limit"},
       "forecast_risk_percentile": {"name": "Forecast risk percentile"},
       "minimum_action_duration": {"name": "Minimum action duration"},
       "action_start_cost": {"name": "Action start penalty"},
