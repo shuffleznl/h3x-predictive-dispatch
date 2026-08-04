@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.2` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.3` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -77,8 +77,8 @@ make them overwrite each other's EMS mode and power reference every update.
 | Charge/discharge power | `number.pylontech_h3x_bridge_charge_discharge_power_ref` |
 | Battery SOC | `sensor.pylontech_h3x_bridge_battery_soc` |
 | House load | `sensor.pylontech_h3x_bridge_load_power` |
-| Real-time grid import | `sensor.dsmr_reading_electricity_currently_delivered` |
-| Grid import trend | Derived internally from the configured real-time grid-import sensor and Home Assistant Recorder. |
+| Real-time grid import/export | Auto-detected Shelly Pro 3EM `total_active_power`, or the configured signed Shelly grid sensor. |
+| Grid import trend | Derived internally from the selected Shelly Pro 3EM source and Home Assistant Recorder. |
 | Battery module count | `sensor.pylontech_h3x_bridge_battery_module_count` |
 | Battery system capacity | `sensor.pylontech_h3x_bridge_battery_system_capacity` |
 | Battery usable capacity | `sensor.pylontech_h3x_bridge_battery_usable_capacity` |
@@ -92,8 +92,9 @@ Shelly and SMA entity IDs are generated from the device names in Home Assistant,
 
 | Purpose | Recommended input |
 | --- | --- |
-| Shelly Pro 3EM total home power | Set **Shelly Pro 3EM total home power sensor entity** to the Shelly total active power sensor when that sensor represents household consumption. |
-| Shelly Pro 3EM per-phase power | If no total load sensor is available, set phase A/B/C power sensors; the controller sums available phases. |
+| Shelly Pro 3EM grid power | Set **Shelly Pro 3EM grid total active power sensor entity (signed)** to the meter at the grid connection. Positive values are import and negative values are export. New entries auto-detect a Shelly `total_active_power` entity when its name identifies it clearly. |
+| Shelly Pro 3EM household load | Set the optional household-load total sensor only when its CT placement measures household consumption rather than net grid flow. |
+| Shelly Pro 3EM per-phase household load | If no total household-load sensor is available, set all phase A/B/C active-power sensors. The controller sums available load phases; grid-limit fallback requires all three phases. |
 | SMA Sunny Boy PV power | Set **SMA Sunny Boy current PV power sensor entity** to the SMA `pv_power` sensor. |
 | Solar forecast | Choose `auto`, `solcast`, or `panel_model`. Configure the API key in integration options. Hobbyist accounts should also provide their rooftop resource ID; leaving it blank uses Solcast's location-based rooftop endpoint when the account permits it. |
 | EV charger power | Optional. Select EV mode `sensor` and set the EV power entity for the cleanest session forecast; `detect` learns repeated high rectangular loads from total home power. |
@@ -113,6 +114,12 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 - `sensor.pylontech_h3x_predictive_dispatch_target_c_rate`
 - `sensor.pylontech_h3x_predictive_dispatch_home_load_power`
 - `sensor.pylontech_h3x_predictive_dispatch_solar_power`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_net_power` (positive import, negative export)
+- `sensor.pylontech_h3x_predictive_dispatch_grid_import_power` (non-negative import guard value)
+- `sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_import_trend`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status`
 - `sensor.pylontech_h3x_predictive_dispatch_forecast_load_power`
 - `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power`
 - `sensor.pylontech_h3x_predictive_dispatch_next_charge_slot`
@@ -201,11 +208,11 @@ Charging is not intentionally spread across many hours. The rolling optimizer ch
 
 Charging headroom is calculated continuously. A configured live grid meter is preferred and the internal time-weighted 15-minute average guards against a transient low reading; the current battery charge command is accounted for so repeated updates do not progressively reduce the same target. Household load is used only when the grid meter is unavailable.
 
-Because the SMA PV inverter and Pylontech battery inverter are separate AC systems, H3X self-consumption mode cannot infer SMA surplus. For a `solar_storage` slot the controller therefore issues an explicit H3X charge command capped by live SMA power minus live home load and a safety margin. If measured surplus falls below minimum active power, it idles instead of importing from the grid. Solcast affects future planning; the live SMA and load readings govern the current surplus-following command.
+Because the SMA PV inverter and Pylontech battery inverter are separate AC systems, H3X self-consumption mode cannot infer SMA surplus. For a `solar_storage` slot the controller therefore issues an explicit H3X charge command capped by live SMA power minus live home load and a safety margin. If measured surplus falls below minimum active power, a purely solar charge idles; an independently economic grid-charge component continues. Solcast affects future planning; the live SMA and load readings govern the current surplus-following component.
 
 Solcast forecasts are cached across Home Assistant restarts and refresh every six hours by default, keeping hobbyist usage below the published daily request allowance. A valid cached forecast survives temporary API failures. `auto` falls back to the local panel/orientation model when Solcast is not configured or unavailable.
 
-The default DSMR `currently delivered` sensor is import-only. It correctly reads `0 W` while the installation is exporting, and a stable series correctly produces a `0 W/min` trend. Use the Grid diagnostics status sensor to distinguish this from missing data: `recorder_history` means the internal average and slope have history, `live_only` means only the current reading was available, and `entity_unavailable` means the configured grid-import entity is missing or unavailable. The status attributes include the entity ID, sample count, sample span, and configured import limit.
+Shelly Pro 3EM `total_active_power` is signed at the grid connection. The controller preserves its sign while reading the source, treats positive power as import, and clamps negative export to `0 W` only for import-limit calculations. If a configured grid entity is unavailable, it falls back to the configured Shelly total and then to the sum of all three configured phase sensors. Use the Shelly grid diagnostics status sensor to distinguish `recorder_history`, `live_only`, `entity_unavailable`, and `shelly_meter_not_configured`; its attributes include the selected source, entity IDs, sample count, sample span, and import limit.
 
 Discharge duration is decided inside the optimizer. The `conservative`, `typical`, and `aggressive` profiles change power candidates, terminal reserve, forecast risk, minimum action duration, and action penalties. A larger battery can therefore support both morning and evening peaks when two independent cycles remain profitable after losses and wear, while flat or marginal price spreads remain idle.
 

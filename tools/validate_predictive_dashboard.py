@@ -23,6 +23,8 @@ def main() -> None:
         raise AssertionError("HACS-packaged predictive dashboard is missing")
     if PACKAGED_DASHBOARD.read_text(encoding="utf-8") != source:
         raise AssertionError("repository and HACS-packaged dashboards differ")
+    if "Shelly Pro 3EM grid trend and limits" not in source:
+        raise AssertionError("dashboard must identify the Shelly grid source")
     required = (
         "title: H3X Predictive Dispatch",
         "sensor.pylontech_h3x_predictive_dispatch_decision",
@@ -38,6 +40,7 @@ def main() -> None:
         "type: history-graph",
         "attribute: solcast_fetched_at",
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_power",
+        "sensor.pylontech_h3x_predictive_dispatch_grid_net_power",
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average",
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_trend",
         "sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom",

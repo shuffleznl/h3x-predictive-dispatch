@@ -230,9 +230,11 @@ views:
         icon: mdi:chart-box-outline
 
       - type: entities
-        title: Grid trend and limits
+        title: Shelly Pro 3EM grid trend and limits
         show_header_toggle: false
         entities:
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power
+            name: Signed grid power (+import / -export)
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
             name: Current grid import
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
@@ -242,16 +244,18 @@ views:
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
             name: Available battery charge headroom
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            name: Recorder diagnostics
+            name: Shelly/Recorder diagnostics
           - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit
             name: Grid import limit
           - entity: number.pylontech_h3x_predictive_dispatch_grid_export_limit
             name: Grid export limit
 
       - type: history-graph
-        title: Grid import and charge headroom
+        title: Shelly grid import and charge headroom
         hours_to_show: 24
         entities:
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power
+            name: Signed grid power
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
             name: Current import
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average

@@ -196,6 +196,7 @@ class Decision:
     solar_power_w: float | None = None
     forecast_load_power_w: float | None = None
     forecast_solar_power_w: float | None = None
+    grid_net_power_w: float | None = None
     grid_import_power_w: float | None = None
     grid_import_average_power_w: float | None = None
     grid_charge_headroom_w: float | None = None
@@ -246,6 +247,8 @@ class Decision:
             data["forecast_load_power_w"] = round(self.forecast_load_power_w, 1)
         if self.forecast_solar_power_w is not None:
             data["forecast_solar_power_w"] = round(self.forecast_solar_power_w, 1)
+        if self.grid_net_power_w is not None:
+            data["grid_net_power_w"] = round(self.grid_net_power_w, 1)
         if self.grid_import_power_w is not None:
             data["grid_import_power_w"] = round(self.grid_import_power_w, 1)
         if self.grid_import_average_power_w is not None:
@@ -295,6 +298,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._grid_import_sample_count = 0
         self._grid_import_sample_span_minutes = 0.0
         self._grid_import_trend_status = "not_loaded"
+        self._grid_import_entity_ids: tuple[str, ...] = ()
+        self._grid_import_measurement_source = "not_loaded"
         self._solcast_forecast: list[SolcastInterval] = []
         self._solcast_fetched_at: datetime | None = None
         self._solcast_last_attempt_at: datetime | None = None
@@ -448,12 +453,13 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_refresh_grid_import_trend(self) -> None:
         """Derive recent grid import average and slope from Recorder history."""
-        entity_id = str(self._option(CONF_GRID_IMPORT_POWER_ENTITY)).strip()
+        current, _net_power, entity_ids, source = self._grid_import_measurement()
+        self._grid_import_entity_ids = entity_ids
+        self._grid_import_measurement_source = source
         samples = await self._history_loader.async_load_recent_power_samples(
-            entity_id,
+            entity_ids,
             minutes=15,
         )
-        current = self._power_state_w(entity_id)
         now = dt_util.now()
         if current is not None:
             samples.append(
@@ -465,7 +471,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._grid_import_sample_count = 0
             self._grid_import_sample_span_minutes = 0.0
             self._grid_import_trend_status = (
-                "entity_unavailable" if entity_id else "entity_not_configured"
+                "entity_unavailable"
+                if entity_ids
+                else "shelly_meter_not_configured"
             )
             return
 
@@ -939,8 +947,13 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.forecast_solar_power_w = (
             solar_forecast_w[0] if solar_forecast_w else None
         )
-        decision.grid_import_power_w = self._power_state_w(
-            str(self._option(CONF_GRID_IMPORT_POWER_ENTITY))
+        (
+            decision.grid_import_power_w,
+            decision.grid_net_power_w,
+            grid_entity_ids,
+            grid_source,
+        ) = (
+            self._grid_import_measurement()
         )
         decision.grid_import_average_power_w = self._grid_import_average_power_w
         decision.grid_charge_headroom_w = self._grid_charge_headroom_w(
@@ -964,8 +977,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "grid_import_limit_w": float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
                 "grid_export_limit_w": float(self._option(CONF_GRID_EXPORT_LIMIT_W)),
                 "grid_import_power_entity": str(
-                    self._option(CONF_GRID_IMPORT_POWER_ENTITY)
+                    ",".join(grid_entity_ids)
                 ),
+                "grid_import_measurement_source": grid_source,
                 "grid_import_average_source": "internal_15_minute_recorder_trend",
                 "grid_import_trend_status": self._grid_import_trend_status,
                 "grid_import_trend_w_per_min": (
@@ -1100,9 +1114,17 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.attributes.setdefault(
             "nordpool_resolution_minutes", configured_resolution
         )
-        grid_entity = str(self._option(CONF_GRID_IMPORT_POWER_ENTITY)).strip()
+        (
+            grid_power_w,
+            grid_net_power_w,
+            grid_entity_ids,
+            grid_source,
+        ) = self._grid_import_measurement()
+        grid_entity = ",".join(grid_entity_ids)
         if decision.grid_import_power_w is None:
-            decision.grid_import_power_w = self._power_state_w(grid_entity)
+            decision.grid_import_power_w = grid_power_w
+        if decision.grid_net_power_w is None:
+            decision.grid_net_power_w = grid_net_power_w
         if decision.grid_import_average_power_w is None:
             decision.grid_import_average_power_w = self._grid_import_average_power_w
         load_power_w = decision.load_power_w
@@ -1114,6 +1136,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             grid_import_average_power_w=decision.grid_import_average_power_w,
         )
         decision.attributes.setdefault("grid_import_power_entity", grid_entity)
+        decision.attributes.setdefault("grid_import_measurement_source", grid_source)
         decision.attributes.setdefault(
             "grid_import_average_source",
             "internal_15_minute_recorder_trend",
@@ -1594,6 +1617,86 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return fallback_power, f"fallback:{fallback_entity}"
 
         return None, "unavailable"
+
+    def _grid_import_measurement(
+        self,
+    ) -> tuple[float | None, float | None, tuple[str, ...], str]:
+        """Resolve signed Shelly grid power and return import-only watts."""
+        configured_entity = str(
+            self._option(CONF_GRID_IMPORT_POWER_ENTITY)
+        ).strip()
+        configured_power = self._power_state_w(configured_entity)
+        if configured_power is not None:
+            return (
+                max(configured_power, 0.0),
+                configured_power,
+                (configured_entity,),
+                "configured_shelly_grid_total",
+            )
+
+        total_entity = str(self._option(CONF_SHELLY_TOTAL_POWER_ENTITY)).strip()
+        total_power = self._power_state_w(total_entity)
+        if total_power is not None:
+            return (
+                max(total_power, 0.0),
+                total_power,
+                (total_entity,),
+                "shelly_total_fallback",
+            )
+
+        autodetected_entity = self._autodetected_shelly_grid_entity()
+        autodetected_power = self._power_state_w(autodetected_entity)
+        if autodetected_power is not None:
+            return (
+                max(autodetected_power, 0.0),
+                autodetected_power,
+                (autodetected_entity,),
+                "shelly_total_autodetected",
+            )
+
+        phase_entities = tuple(
+            str(self._option(key)).strip()
+            for key in (
+                CONF_SHELLY_PHASE_A_POWER_ENTITY,
+                CONF_SHELLY_PHASE_B_POWER_ENTITY,
+                CONF_SHELLY_PHASE_C_POWER_ENTITY,
+            )
+        )
+        if all(phase_entities):
+            phase_values = [self._power_state_w(entity) for entity in phase_entities]
+            if all(value is not None for value in phase_values):
+                net_power = sum(value or 0.0 for value in phase_values)
+                return (
+                    max(net_power, 0.0),
+                    net_power,
+                    phase_entities,
+                    "shelly_three_phase_sum",
+                )
+
+        unavailable = tuple(
+            entity
+            for entity in (configured_entity, total_entity, *phase_entities)
+            if entity
+        )
+        return None, None, unavailable, "shelly_meter_unavailable"
+
+    def _autodetected_shelly_grid_entity(self) -> str:
+        """Find a clearly named Shelly total active-power sensor."""
+        for state in self.hass.states.async_all("sensor"):
+            identity = " ".join(
+                (
+                    state.entity_id,
+                    str((state.attributes or {}).get("friendly_name") or ""),
+                )
+            ).lower()
+            if (
+                "shelly" in identity
+                and "total" in identity
+                and "active" in identity
+                and "power" in identity
+            ):
+                return state.entity_id
+        return ""
 
     def _positive_power_state_w(self, entity_id: str | None) -> float | None:
         """Read a power entity and clamp impossible negative consumption to zero."""

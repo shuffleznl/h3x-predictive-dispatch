@@ -25,12 +25,16 @@ class RecorderHistoryLoader:
 
     async def async_load_recent_power_samples(
         self,
-        entity_id: str,
+        entity_ids: str | list[str] | tuple[str, ...],
         *,
         minutes: int = 15,
     ) -> list[PowerObservation]:
-        """Return recent raw meter samples for internal averaging and trend."""
-        if not entity_id:
+        """Return recent raw meter samples, summing synchronized phase entities."""
+        if isinstance(entity_ids, str):
+            normalized_ids = [entity_ids] if entity_ids else []
+        else:
+            normalized_ids = [entity_id for entity_id in entity_ids if entity_id]
+        if not normalized_ids:
             return []
         end = dt_util.utcnow()
         start = end - timedelta(minutes=min(max(minutes, 5), 60))
@@ -40,7 +44,7 @@ class RecorderHistoryLoader:
                 self._hass,
                 start,
                 end,
-                [entity_id],
+                normalized_ids,
                 None,
                 True,
                 False,
@@ -52,25 +56,35 @@ class RecorderHistoryLoader:
             LOGGER.warning("Unable to load recent grid-meter history", exc_info=True)
             return []
 
-        factor = self._power_factor(entity_id)
-        samples: list[PowerObservation] = []
-        for row in result.get(entity_id, []):
-            try:
-                value = row.state if hasattr(row, "state") else row.get("state")
-                timestamp_value = (
-                    row.last_updated
-                    if hasattr(row, "last_updated")
-                    else row.get("last_updated")
-                )
-                samples.append(
-                    PowerObservation(
-                        timestamp=self._timestamp(timestamp_value),
-                        load_w=max(float(value) * factor, 0.0),
+        events: dict[datetime, dict[str, float]] = {}
+        for entity_id in normalized_ids:
+            factor = self._power_factor(entity_id)
+            for row in result.get(entity_id, []):
+                try:
+                    value = row.state if hasattr(row, "state") else row.get("state")
+                    timestamp_value = (
+                        row.last_updated
+                        if hasattr(row, "last_updated")
+                        else row.get("last_updated")
                     )
-                )
-            except (AttributeError, TypeError, ValueError, OverflowError):
+                    timestamp = self._timestamp(timestamp_value)
+                    events.setdefault(timestamp, {})[entity_id] = float(value) * factor
+                except (AttributeError, TypeError, ValueError, OverflowError):
+                    continue
+
+        current_values: dict[str, float] = {}
+        samples: list[PowerObservation] = []
+        for timestamp, updates in sorted(events.items()):
+            current_values.update(updates)
+            if len(current_values) != len(normalized_ids):
                 continue
-        return sorted(samples, key=lambda item: item.timestamp)
+            samples.append(
+                PowerObservation(
+                    timestamp=timestamp,
+                    load_w=max(sum(current_values.values()), 0.0),
+                )
+            )
+        return samples
 
     async def async_load_power_history(
         self,

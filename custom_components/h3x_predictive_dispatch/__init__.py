@@ -7,20 +7,25 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
+    CONF_GRID_IMPORT_POWER_ENTITY,
     CONF_RESOLUTION,
+    CONF_SHELLY_PHASE_A_POWER_ENTITY,
+    CONF_SHELLY_PHASE_B_POWER_ENTITY,
+    CONF_SHELLY_PHASE_C_POWER_ENTITY,
+    CONF_SHELLY_TOTAL_POWER_ENTITY,
     DEFAULT_RESOLUTION,
     PLATFORMS,
     RESOLUTIONS,
 )
 from .coordinator import H3XPredictiveDispatchCoordinator
 
-CONFIG_ENTRY_VERSION = 3
+CONFIG_ENTRY_VERSION = 4
 
 
 async def async_migrate_entry(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> bool:
-    """Persist resolution and remove the obsolete external average meter."""
+    """Persist resolution and migrate grid monitoring to configured Shelly data."""
     if entry.version > CONFIG_ENTRY_VERSION:
         return False
     if entry.version == CONFIG_ENTRY_VERSION:
@@ -44,6 +49,41 @@ async def async_migrate_entry(
         options[CONF_RESOLUTION] = resolution
     data.pop(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY, None)
     options.pop(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY, None)
+
+    configured_grid = str(
+        options.get(
+            CONF_GRID_IMPORT_POWER_ENTITY,
+            data.get(CONF_GRID_IMPORT_POWER_ENTITY, ""),
+        )
+    ).strip()
+    shelly_total = str(
+        options.get(
+            CONF_SHELLY_TOTAL_POWER_ENTITY,
+            data.get(CONF_SHELLY_TOTAL_POWER_ENTITY, ""),
+        )
+    ).strip()
+    shelly_phases = [
+        str(options.get(key, data.get(key, ""))).strip()
+        for key in (
+            CONF_SHELLY_PHASE_A_POWER_ENTITY,
+            CONF_SHELLY_PHASE_B_POWER_ENTITY,
+            CONF_SHELLY_PHASE_C_POWER_ENTITY,
+        )
+    ]
+    shelly_available = (
+        bool(shelly_total and hass.states.get(shelly_total))
+        or bool(
+            all(shelly_phases)
+            and all(hass.states.get(entity_id) for entity_id in shelly_phases)
+        )
+    )
+    if (
+        configured_grid
+        and hass.states.get(configured_grid) is None
+        and shelly_available
+    ):
+        data.pop(CONF_GRID_IMPORT_POWER_ENTITY, None)
+        options.pop(CONF_GRID_IMPORT_POWER_ENTITY, None)
     hass.config_entries.async_update_entry(
         entry,
         data=data,

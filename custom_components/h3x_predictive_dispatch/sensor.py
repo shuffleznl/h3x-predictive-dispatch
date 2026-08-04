@@ -109,6 +109,7 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "shelly_phase_b_power_entity",
             "shelly_phase_c_power_entity",
             "grid_import_power_entity",
+            "grid_import_measurement_source",
             "grid_import_average_source",
             "grid_import_trend_status",
             "grid_import_trend_w_per_min",
@@ -343,6 +344,16 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         value_fn=lambda data: data.get("solar_power_w"),
     ),
     H3XPredictiveDispatchSensorDescription(
+        key="grid_net_power",
+        translation_key="grid_net_power",
+        name="Grid net power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:transmission-tower",
+        value_fn=lambda data: data.get("grid_net_power_w"),
+    ),
+    H3XPredictiveDispatchSensorDescription(
         key="grid_import_power",
         translation_key="grid_import_power",
         name="Grid import power",
@@ -389,6 +400,9 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         value_fn=lambda data: _attribute(data, "grid_import_trend_status"),
         extra_fn=lambda data: {
             "entity": _attribute(data, "grid_import_power_entity"),
+            "measurement_source": _attribute(
+                data, "grid_import_measurement_source"
+            ),
             "source": _attribute(data, "grid_import_average_source"),
             "samples": _attribute(data, "grid_import_trend_samples"),
             "span_minutes": _attribute(data, "grid_import_trend_span_minutes"),
