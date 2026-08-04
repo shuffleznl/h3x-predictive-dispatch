@@ -21,6 +21,7 @@ class FakeState:
 
     entity_id: str
     attributes: dict[str, str]
+    state: str = "1234.5"
 
 
 class FakeRegistry:
@@ -42,6 +43,13 @@ class FakeStates:
     def async_all(self, domain: str) -> list[FakeState]:
         assert domain == "sensor"
         return self._states
+
+    def get(self, entity_id: str) -> FakeState | None:
+        """Return a state by entity ID."""
+        return next(
+            (state for state in self._states if state.entity_id == entity_id),
+            None,
+        )
 
 
 def load_meter_module() -> ModuleType:
@@ -117,6 +125,27 @@ def main() -> None:
     )
     other = hass_with({unrelated.entity_id: unrelated_entry}, [unrelated])
     assert module.autodetect_shelly_total_active_power(other) == ""
+
+    sma = FakeState(
+        "sensor.sunny_boy_pv_power",
+        {"device_class": "power", "friendly_name": "Sunny Boy PV Power"},
+        state="812.0",
+    )
+    sma_entry = SimpleNamespace(
+        platform="sma",
+        unique_id="sunnyboy-pv_power",
+        original_name="PV Power",
+    )
+    inverter = hass_with({sma.entity_id: sma_entry}, [sma])
+    assert module.autodetect_sma_pv_power(inverter) == sma.entity_id
+
+    unavailable = FakeState(
+        "sensor.old_meter",
+        {"device_class": "power"},
+        state="unavailable",
+    )
+    stale = hass_with({}, [unavailable])
+    assert not module.entity_has_numeric_state(stale, unavailable.entity_id)
 
 
 if __name__ == "__main__":

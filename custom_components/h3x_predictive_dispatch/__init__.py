@@ -13,13 +13,19 @@ from .const import (
     CONF_SHELLY_PHASE_B_POWER_ENTITY,
     CONF_SHELLY_PHASE_C_POWER_ENTITY,
     CONF_SHELLY_TOTAL_POWER_ENTITY,
+    CONF_SOLAR_POWER_ENTITY,
     DEFAULT_RESOLUTION,
     PLATFORMS,
     RESOLUTIONS,
 )
 from .coordinator import H3XPredictiveDispatchCoordinator
+from .meter import (
+    autodetect_shelly_total_active_power,
+    autodetect_sma_pv_power,
+    entity_has_numeric_state,
+)
 
-CONFIG_ENTRY_VERSION = 4
+CONFIG_ENTRY_VERSION = 5
 
 
 async def async_migrate_entry(
@@ -79,11 +85,35 @@ async def async_migrate_entry(
     )
     if (
         configured_grid
-        and hass.states.get(configured_grid) is None
+        and not entity_has_numeric_state(hass, configured_grid)
         and shelly_available
     ):
         data.pop(CONF_GRID_IMPORT_POWER_ENTITY, None)
         options.pop(CONF_GRID_IMPORT_POWER_ENTITY, None)
+
+    detected_grid = autodetect_shelly_total_active_power(hass)
+    if detected_grid and not entity_has_numeric_state(hass, configured_grid):
+        _replace_setting(
+            data,
+            options,
+            CONF_GRID_IMPORT_POWER_ENTITY,
+            detected_grid,
+        )
+
+    configured_solar = str(
+        options.get(
+            CONF_SOLAR_POWER_ENTITY,
+            data.get(CONF_SOLAR_POWER_ENTITY, ""),
+        )
+    ).strip()
+    detected_solar = autodetect_sma_pv_power(hass)
+    if detected_solar and not entity_has_numeric_state(hass, configured_solar):
+        _replace_setting(
+            data,
+            options,
+            CONF_SOLAR_POWER_ENTITY,
+            detected_solar,
+        )
     hass.config_entries.async_update_entry(
         entry,
         data=data,
@@ -91,6 +121,19 @@ async def async_migrate_entry(
         version=CONFIG_ENTRY_VERSION,
     )
     return True
+
+
+def _replace_setting(
+    data: dict[str, object],
+    options: dict[str, object],
+    key: str,
+    value: object,
+) -> None:
+    """Replace an entry setting without changing data/options precedence."""
+    if key in options:
+        options[key] = value
+    else:
+        data[key] = value
 
 
 async def async_setup_entry(

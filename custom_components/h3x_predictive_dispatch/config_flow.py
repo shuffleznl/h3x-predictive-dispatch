@@ -8,6 +8,10 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
+    SelectSelector,
+    SelectSelectorConfig,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -98,6 +102,7 @@ from .const import (
     DEFAULTS,
     DISCHARGE_POWER_MODES,
     DOMAIN,
+    EMS_MODE_OPTIONS,
     EV_FORECAST_MODES,
     FORCE_H3_MAX_MODULES,
     FORCE_H3_MIN_MODULES,
@@ -116,13 +121,17 @@ from .const import (
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
 )
-from .meter import autodetect_shelly_total_active_power
+from .meter import (
+    autodetect_shelly_total_active_power,
+    autodetect_sma_pv_power,
+    entity_has_numeric_state,
+)
 
 
 class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
-    VERSION = 4
+    VERSION = 5
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -191,6 +200,7 @@ def _schema(
     data = {**DEFAULTS, **_autodetected_defaults(hass)}
     if values:
         data.update(values)
+    data = _replace_unavailable_autodetected_entities(hass, data)
     data = _normalize_resolution(data)
     data = _apply_module_count_settings(data)
 
@@ -229,7 +239,7 @@ def _schema(
             ): vol.All(vol.Coerce(float), vol.Range(min=500.0, max=22000.0)),
             vol.Optional(
                 CONF_EMS_MODE_ENTITY, default=data[CONF_EMS_MODE_ENTITY]
-            ): str,
+            ): EntitySelector(EntitySelectorConfig(domain="select")),
             vol.Optional(
                 CONF_POWER_REF_ENTITY, default=data[CONF_POWER_REF_ENTITY]
             ): str,
@@ -473,8 +483,16 @@ def _schema(
                 CONF_UPDATE_INTERVAL_MINUTES,
                 default=data[CONF_UPDATE_INTERVAL_MINUTES],
             ): vol.All(vol.Coerce(float), vol.Range(min=1.0, max=60.0)),
-            vol.Optional(CONF_USER_EMS_MODE, default=data[CONF_USER_EMS_MODE]): str,
-            vol.Optional(CONF_IDLE_EMS_MODE, default=data[CONF_IDLE_EMS_MODE]): str,
+            vol.Optional(
+                CONF_USER_EMS_MODE, default=data[CONF_USER_EMS_MODE]
+            ): SelectSelector(
+                SelectSelectorConfig(options=list(EMS_MODE_OPTIONS))
+            ),
+            vol.Optional(
+                CONF_IDLE_EMS_MODE, default=data[CONF_IDLE_EMS_MODE]
+            ): SelectSelector(
+                SelectSelectorConfig(options=list(EMS_MODE_OPTIONS))
+            ),
             vol.Optional(
                 CONF_MIN_CHARGE_TEMP_C, default=data[CONF_MIN_CHARGE_TEMP_C]
             ): vol.All(vol.Coerce(float), vol.Range(min=-20.0, max=30.0)),
@@ -486,7 +504,7 @@ def _schema(
 
 
 def _autodetected_defaults(hass: HomeAssistant) -> dict[str, Any]:
-    """Return defaults from Nord Pool and a Shelly Pro 3EM when available."""
+    """Return defaults from Nord Pool, Shelly and SMA when available."""
     defaults: dict[str, Any] = {}
     entries = hass.config_entries.async_entries(NORDPOOL_DOMAIN)
     if entries:
@@ -501,7 +519,28 @@ def _autodetected_defaults(hass: HomeAssistant) -> dict[str, Any]:
     shelly_grid_entity = autodetect_shelly_total_active_power(hass)
     if shelly_grid_entity:
         defaults[CONF_GRID_IMPORT_POWER_ENTITY] = shelly_grid_entity
+    sma_pv_entity = autodetect_sma_pv_power(hass)
+    if sma_pv_entity:
+        defaults[CONF_SOLAR_POWER_ENTITY] = sma_pv_entity
     return defaults
+
+
+def _replace_unavailable_autodetected_entities(
+    hass: HomeAssistant,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    """Replace stale meter/inverter selections shown by the config flow."""
+    updated = dict(data)
+    detected_grid = autodetect_shelly_total_active_power(hass)
+    configured_grid = str(updated.get(CONF_GRID_IMPORT_POWER_ENTITY) or "").strip()
+    if detected_grid and not entity_has_numeric_state(hass, configured_grid):
+        updated[CONF_GRID_IMPORT_POWER_ENTITY] = detected_grid
+
+    detected_solar = autodetect_sma_pv_power(hass)
+    configured_solar = str(updated.get(CONF_SOLAR_POWER_ENTITY) or "").strip()
+    if detected_solar and not entity_has_numeric_state(hass, configured_solar):
+        updated[CONF_SOLAR_POWER_ENTITY] = detected_solar
+    return updated
 
 
 def _apply_profile_when_changed(

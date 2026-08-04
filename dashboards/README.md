@@ -24,7 +24,7 @@ It shows:
 
 ## Install The YAML Dashboard
 
-Predictive Dispatch `v0.2.4` and newer package the dashboard inside the
+Predictive Dispatch `v0.2.5` and newer package the dashboard inside the
 HACS-managed integration directory. Point Home Assistant directly at that copy
 so future HACS upgrades refresh the dashboard automatically:
 
@@ -57,7 +57,7 @@ Planned values can change when Nord Pool publishes new prices, the battery SOC c
 
 ## PV And Load Display
 
-The dashboard requires `h3x_predictive_dispatch` `0.2.4` or newer. If
+The dashboard requires `h3x_predictive_dispatch` `0.2.5` or newer. If
 historical data has not accumulated yet, the optimizer uses its live-load
 fallback and forecast-quality cards remain unavailable until Recorder has
 enough samples.
@@ -76,4 +76,6 @@ device name by default, for example
 
 If Home Assistant adds suffixes such as `_2`, edit the dashboard YAML and replace the entity IDs.
 
-Dashboard diagnostics introduced by upgrades use attributes of the stable decision entity where practical. This prevents a newly added diagnostic sensor from producing an `Entity not found` card before Home Assistant has refreshed its entity registry. The live load/solar tiles show current measurements; their forecast counterparts show the next price interval and are intentionally not aliases of the live values.
+Dashboard measurements use dedicated entities so their More Info dialogs open the selected measurement instead of the general decision sensor. Restart Home Assistant after an integration upgrade so newly added entities are registered before refreshing the dashboard.
+
+The live load/solar tiles are current measurements. The next-interval tiles are rolling predictions for the timestamp shown in their attributes, while the larger horizon tiles are future energy totals from now through the configured optimization horizon. Home Assistant records each successive forecast state, so a forecast entity's More Info dialog contains the history of earlier forecasts; that recorder history is not a forecast for past time. The dashboard history graph intentionally includes only measured load and PV.

@@ -213,6 +213,8 @@
       "solar_power": {
         "name": "Solar power"
       },
+      "economic_grid_charge_power": {"name": "Economic grid charge power"},
+      "live_solar_surplus_power": {"name": "Live solar surplus power"},
       "grid_net_power": {"name": "Grid net power"},
       "grid_import_power": {"name": "Grid import power"},
       "grid_import_average_power": {"name": "Grid import 15-minute average"},
@@ -220,10 +222,10 @@
       "grid_charge_headroom": {"name": "Grid charge headroom"},
       "grid_diagnostics_status": {"name": "Shelly grid diagnostics status"},
       "forecast_load_power": {
-        "name": "Next-slot forecast load power"
+        "name": "Load forecast, next interval"
       },
       "forecast_solar_power": {
-        "name": "Next-slot forecast solar power"
+        "name": "Solar forecast, next interval"
       },
       "next_charge_slot": {
         "name": "Next charge slot"

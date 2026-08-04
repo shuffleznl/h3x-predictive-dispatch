@@ -351,6 +351,32 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:solar-power",
         value_fn=lambda data: data.get("solar_power_w"),
+        extra_fn=lambda data: {
+            "entity": _attribute(data, "solar_power_entity"),
+            "measurement_source": _attribute(
+                data, "solar_power_measurement_source"
+            ),
+        },
+    ),
+    H3XPredictiveDispatchSensorDescription(
+        key="economic_grid_charge_power",
+        translation_key="economic_grid_charge_power",
+        name="Economic grid charge power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:transmission-tower-import",
+        value_fn=lambda data: data.get("economic_grid_charge_power_w"),
+    ),
+    H3XPredictiveDispatchSensorDescription(
+        key="live_solar_surplus_power",
+        translation_key="live_solar_surplus_power",
+        name="Live solar surplus power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:solar-power-variant",
+        value_fn=lambda data: data.get("live_solar_surplus_power_w"),
     ),
     H3XPredictiveDispatchSensorDescription(
         key="grid_net_power",
@@ -427,6 +453,10 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:home-analytics",
         value_fn=lambda data: data.get("forecast_load_power_w"),
+        extra_fn=lambda data: {
+            "slot_start": _attribute(data, "forecast_power_slot_start"),
+            "slot_end": _attribute(data, "forecast_power_slot_end"),
+        },
     ),
     H3XPredictiveDispatchSensorDescription(
         key="forecast_solar_power",
@@ -437,6 +467,10 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:weather-sunny",
         value_fn=lambda data: data.get("forecast_solar_power_w"),
+        extra_fn=lambda data: {
+            "slot_start": _attribute(data, "forecast_power_slot_start"),
+            "slot_end": _attribute(data, "forecast_power_slot_end"),
+        },
     ),
     H3XPredictiveDispatchSensorDescription(
         key="next_charge_slot",
@@ -618,6 +652,10 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         icon="mdi:home-analytics",
         value_fn=lambda data: data.get("forecast_load_kwh"),
+        extra_fn=lambda data: {
+            "horizon_start": _attribute(data, "forecast_horizon_start"),
+            "horizon_end": _attribute(data, "forecast_horizon_end"),
+        },
     ),
     H3XPredictiveDispatchSensorDescription(
         key="forecast_solar_energy",
@@ -627,6 +665,10 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         icon="mdi:solar-power",
         value_fn=lambda data: data.get("forecast_solar_kwh"),
+        extra_fn=lambda data: {
+            "horizon_start": _attribute(data, "forecast_horizon_start"),
+            "horizon_end": _attribute(data, "forecast_horizon_end"),
+        },
     ),
     H3XPredictiveDispatchSensorDescription(
         key="price_plan",

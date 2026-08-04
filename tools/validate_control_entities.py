@@ -164,8 +164,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.4"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.4")
+    if '"version": "0.2.5"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.5")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -174,9 +174,9 @@ def main() -> None:
         raise AssertionError("Nord Pool price fetch must fall back to hourly prices")
     if "{CONF_NORDPOOL_CONFIG_ENTRY: entry.entry_id}" in config_flow_source:
         raise AssertionError("setup defaults must not persist a volatile Nord Pool entry id")
-    if "VERSION = 4" not in config_flow_source:
+    if "VERSION = 5" not in config_flow_source:
         raise AssertionError("config flow version must migrate obsolete sensor settings")
-    if "CONFIG_ENTRY_VERSION = 4" not in init_source:
+    if "CONFIG_ENTRY_VERSION = 5" not in init_source:
         raise AssertionError("config entry version must migrate Shelly grid monitoring")
     if 'DEFAULT_GRID_IMPORT_POWER_ENTITY = ""' not in const_source:
         raise AssertionError("grid monitoring must not default to a retired meter")
@@ -184,6 +184,12 @@ def main() -> None:
         raise AssertionError("Shelly grid source resolver is missing")
     if "autodetect_shelly_total_active_power" not in coordinator_source:
         raise AssertionError("entity-registry Shelly discovery is missing")
+    if "autodetect_sma_pv_power" not in coordinator_source:
+        raise AssertionError("entity-registry SMA PV discovery is missing")
+    if "SelectSelectorConfig(options=list(EMS_MODE_OPTIONS))" not in config_flow_source:
+        raise AssertionError("EMS mode settings must use dropdown selectors")
+    if "EntitySelectorConfig(domain=\"select\")" not in config_flow_source:
+        raise AssertionError("EMS mode entity must use an entity selector")
     if "forecast_index = 1 if len(future_slots) > 1 else None" not in coordinator_source:
         raise AssertionError("forecast power sensors must represent the next slot")
     for stable_attribute in (
@@ -196,6 +202,17 @@ def main() -> None:
             raise AssertionError(
                 f"stable dashboard attribute is missing: {stable_attribute}"
             )
+    for sensor_key in (
+        "economic_grid_charge_power",
+        "live_solar_surplus_power",
+        "grid_net_power",
+        "grid_import_power",
+        "grid_import_average_power",
+        "grid_import_trend",
+        "grid_charge_headroom",
+    ):
+        if f'key="{sensor_key}"' not in sensor_source:
+            raise AssertionError(f"dashboard sensor is missing: {sensor_key}")
     if "_normalize_resolution(user_input)" not in config_flow_source:
         raise AssertionError("config flow must normalize the submitted resolution")
     if "async_migrate_entry" not in init_source:

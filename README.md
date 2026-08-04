@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.4` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.5` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -95,7 +95,7 @@ Shelly and SMA entity IDs are generated from the device names in Home Assistant,
 | Shelly Pro 3EM grid power | Set **Shelly Pro 3EM grid total active power sensor entity (signed)** to the meter at the grid connection. Positive values are import and negative values are export. New entries auto-detect a Shelly `total_active_power` entity when its name identifies it clearly. |
 | Shelly Pro 3EM household load | Set the optional household-load total sensor only when its CT placement measures household consumption rather than net grid flow. |
 | Shelly Pro 3EM per-phase household load | If no total household-load sensor is available, set all phase A/B/C active-power sensors. The controller sums available load phases; grid-limit fallback requires all three phases. |
-| SMA Sunny Boy PV power | Set **SMA Sunny Boy current PV power sensor entity** to the SMA `pv_power` sensor. |
+| SMA Sunny Boy PV power | Set **SMA Sunny Boy current PV power sensor entity** to the SMA `pv_power` sensor. Version 0.2.5 auto-detects one unambiguous, available SMA `pv_power` entity and replaces a stale saved selection during migration. |
 | Solar forecast | Choose `auto`, `solcast`, or `panel_model`. Configure the API key in integration options. Hobbyist accounts should also provide their rooftop resource ID; leaving it blank uses Solcast's location-based rooftop endpoint when the account permits it. |
 | EV charger power | Optional. Select EV mode `sensor` and set the EV power entity for the cleanest session forecast; `detect` learns repeated high rectangular loads from total home power. |
 | PV orientation | Select one of `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, or `NW`. |
@@ -114,6 +114,8 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 - `sensor.pylontech_h3x_predictive_dispatch_target_c_rate`
 - `sensor.pylontech_h3x_predictive_dispatch_home_load_power`
 - `sensor.pylontech_h3x_predictive_dispatch_solar_power`
+- `sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power`
+- `sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power`
 - `sensor.pylontech_h3x_predictive_dispatch_grid_net_power` (positive import, negative export)
 - `sensor.pylontech_h3x_predictive_dispatch_grid_import_power` (non-negative import guard value)
 - `sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average`
@@ -203,6 +205,8 @@ The optimizer supports:
 - explicit action-start and charge/discharge direction-change penalties to reject short marginal cycles,
 - baseline-versus-optimized grid cost, modeled wear cost and planned equivalent full-cycle diagnostics,
 - BMS temperature guards for LiFePO4 charging.
+
+**Forecast risk percentile** controls how much the optimizer prices uncertainty rather than changing the forecast itself. At `50%`, it minimizes the weighted expected cost across low, median, and high net-load scenarios. Values toward `90%` increasingly add the most expensive scenario, which favors retaining energy for unexpectedly high load or low solar production. Import/export feasibility remains conservatively checked against p90 load and p10 solar at every setting.
 
 Default power settings are `11 kW` continuous and `13.8 kW` peak, with peak power only used when the price spread clears the configured extra margin. C-rate caps are applied after those economic limits: for a 6-module pack with `29.17 kWh` usable capacity, `0.5C` is `14.6 kW`, so the inverter peak still limits the final setpoint. The default grid import limit is `17.5 kW`; set it to `0` in options to disable the import guard.
 

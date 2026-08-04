@@ -29,6 +29,8 @@ jobs:
         run: python tools/validate_predictive_dispatch.py
       - name: Validate predictive dashboard namespace
         run: python tools/validate_predictive_dashboard.py
+      - name: Validate Shelly and SMA entity discovery
+        run: python tools/validate_shelly_meter.py
       - name: Validate JSON
         run: |
           python -m json.tool hacs.json > /dev/null

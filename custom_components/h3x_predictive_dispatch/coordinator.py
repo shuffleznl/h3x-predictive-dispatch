@@ -124,7 +124,7 @@ from .forecast import (
     time_weighted_average,
 )
 from .history import RecorderHistoryLoader
-from .meter import autodetect_shelly_total_active_power
+from .meter import autodetect_shelly_total_active_power, autodetect_sma_pv_power
 from .optimizer import (
     OptimizerSettings,
     OptimizerSlot,
@@ -915,8 +915,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 price=current.price,
             )
         load_power_w, load_source = self._home_load_power_w()
-        solar_power_w = self._positive_power_state_w(
-            str(self._option(CONF_SOLAR_POWER_ENTITY)).strip()
+        solar_power_w, solar_entity, solar_measurement_source = (
+            self._solar_power_measurement()
         )
         load_forecast = self._forecast_load(optimization_slots, load_power_w)
         self._load_forecast_result = load_forecast
@@ -1012,6 +1012,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if forecast_index is not None
                     else None
                 ),
+                "forecast_horizon_start": optimization_slots[0].start.isoformat(),
+                "forecast_horizon_end": optimization_slots[-1].end.isoformat(),
                 "grid_import_average_source": "internal_15_minute_recorder_trend",
                 "grid_import_trend_status": self._grid_import_trend_status,
                 "grid_import_trend_w_per_min": (
@@ -1038,7 +1040,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "shelly_phase_c_power_entity": str(
                     self._option(CONF_SHELLY_PHASE_C_POWER_ENTITY)
                 ),
-                "solar_power_entity": str(self._option(CONF_SOLAR_POWER_ENTITY)),
+                "solar_power_entity": solar_entity,
+                "solar_power_measurement_source": solar_measurement_source,
                 "pv_orientation": str(self._option(CONF_PV_ORIENTATION)).upper(),
                 "pv_panel_count": float(self._option(CONF_PV_PANEL_COUNT)),
                 "pv_panel_wp": float(self._option(CONF_PV_PANEL_WP)),
@@ -1194,6 +1197,13 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.attributes.setdefault(
             "grid_import_limit_w",
             float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
+        )
+        solar_power_w, solar_entity, solar_source = self._solar_power_measurement()
+        if decision.solar_power_w is None:
+            decision.solar_power_w = solar_power_w
+        decision.attributes.setdefault("solar_power_entity", solar_entity)
+        decision.attributes.setdefault(
+            "solar_power_measurement_source", solar_source
         )
         decision.attributes.setdefault(
             "economic_grid_charge_power_w",
@@ -1725,6 +1735,24 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _autodetected_shelly_grid_entity(self) -> str:
         """Find a clearly named Shelly total active-power sensor."""
         return autodetect_shelly_total_active_power(self.hass)
+
+    def _solar_power_measurement(self) -> tuple[float | None, str, str]:
+        """Resolve configured or auto-detected SMA AC-side PV power."""
+        configured_entity = str(self._option(CONF_SOLAR_POWER_ENTITY)).strip()
+        configured_power = self._positive_power_state_w(configured_entity)
+        if configured_power is not None:
+            return configured_power, configured_entity, "configured_sma_pv_power"
+
+        autodetected_entity = autodetect_sma_pv_power(self.hass)
+        autodetected_power = self._positive_power_state_w(autodetected_entity)
+        if autodetected_power is not None:
+            return (
+                autodetected_power,
+                autodetected_entity,
+                "sma_pv_power_autodetected",
+            )
+
+        return None, configured_entity, "sma_pv_power_unavailable"
 
     def _positive_power_state_w(self, entity_id: str | None) -> float | None:
         """Read a power entity and clamp impossible negative consumption to zero."""

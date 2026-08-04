@@ -41,18 +41,20 @@ def main() -> None:
         "attribute: solcast_fetched_at",
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_power",
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average",
+        "sensor.pylontech_h3x_predictive_dispatch_grid_import_trend",
+        "sensor.pylontech_h3x_predictive_dispatch_grid_net_power",
         "sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom",
+        "sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status",
+        "sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power",
+        "sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power",
         "number.pylontech_h3x_predictive_dispatch_grid_import_limit",
         "number.pylontech_h3x_predictive_dispatch_grid_export_limit",
-        "attribute: economic_grid_charge_power_w",
-        "attribute: live_solar_surplus_power_w",
-        "attribute: grid_net_power_w",
-        "attribute: grid_import_measurement_source",
-        "attribute: grid_import_trend_w_per_min",
-        "attribute: grid_import_trend_status",
         "attribute: forecast_power_slot_start",
-        "Next-slot load forecast",
-        "Next-slot solar forecast",
+        "attribute: measurement_source",
+        "Load forecast, next interval",
+        "Solar forecast, next interval",
+        "Forecast load over full horizon",
+        "Forecast solar over full horizon",
         "Active or next forced charge",
         "Price assumptions",
     )
@@ -68,12 +70,24 @@ def main() -> None:
         "<tr>",
         "attribute: economic_grid_charge_w",
         "attribute: live_surplus_w",
-        "entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power",
+        "attribute: economic_grid_charge_power_w",
+        "attribute: live_solar_surplus_power_w",
+        "attribute: grid_net_power_w",
+        "attribute: grid_import_power_w",
+        "attribute: grid_import_average_power_w",
+        "attribute: grid_import_trend_w_per_min",
+        "attribute: grid_charge_headroom_w",
         "Current-slot load forecast",
         "Current-slot solar forecast",
     ):
         if forbidden in source:
             raise AssertionError(f"dashboard still uses unsupported {forbidden!r}")
+
+    measured_history = source.split(
+        "title: Measured home load and SMA PV history", 1
+    )[1].split("- type: history-graph", 1)[0]
+    if "forecast_load_power" in measured_history or "forecast_solar_power" in measured_history:
+        raise AssertionError("rolling forecast snapshots must not be charted as history")
 
 
 if __name__ == "__main__":

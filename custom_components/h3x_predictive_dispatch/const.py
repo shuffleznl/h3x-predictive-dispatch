@@ -248,6 +248,14 @@ LOAD_FORECAST_MODES = ("historical", "live_flat")
 EV_FORECAST_MODES = ("off", "detect", "sensor")
 PV_ORIENTATIONS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 SOLAR_FORECAST_SOURCES = ("auto", "solcast", "panel_model")
+EMS_MODE_OPTIONS = (
+    "Self-Consumption",
+    "Back up mode",
+    "Off-Grid mode",
+    "Feed in priority mode",
+    "User mode",
+    "PN-Customer mode",
+)
 FORCE_H3_MODULE_CAPACITY_KWH = 5.12
 FORCE_H3_USABLE_DOD = 0.95
 FORCE_H3_SYSTEM_CAPACITY_KWH = {
