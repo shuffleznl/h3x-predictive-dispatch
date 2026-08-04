@@ -23,6 +23,55 @@ class RecorderHistoryLoader:
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
 
+    async def async_load_recent_power_samples(
+        self,
+        entity_id: str,
+        *,
+        minutes: int = 15,
+    ) -> list[PowerObservation]:
+        """Return recent raw meter samples for internal averaging and trend."""
+        if not entity_id:
+            return []
+        end = dt_util.utcnow()
+        start = end - timedelta(minutes=min(max(minutes, 5), 60))
+        try:
+            result = await get_instance(self._hass).async_add_executor_job(
+                get_significant_states,
+                self._hass,
+                start,
+                end,
+                [entity_id],
+                None,
+                False,
+                False,
+                False,
+                True,
+                False,
+            )
+        except Exception:
+            LOGGER.warning("Unable to load recent grid-meter history", exc_info=True)
+            return []
+
+        factor = self._power_factor(entity_id)
+        samples: list[PowerObservation] = []
+        for row in result.get(entity_id, []):
+            try:
+                value = row.state if hasattr(row, "state") else row.get("state")
+                timestamp_value = (
+                    row.last_updated
+                    if hasattr(row, "last_updated")
+                    else row.get("last_updated")
+                )
+                samples.append(
+                    PowerObservation(
+                        timestamp=self._timestamp(timestamp_value),
+                        load_w=max(float(value) * factor, 0.0),
+                    )
+                )
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                continue
+        return sorted(samples, key=lambda item: item.timestamp)
+
     async def async_load_power_history(
         self,
         load_entity_id: str,

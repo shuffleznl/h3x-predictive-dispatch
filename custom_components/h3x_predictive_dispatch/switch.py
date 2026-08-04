@@ -11,7 +11,12 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_DUTCH_TARIFF_ENABLED, CONF_PERIODIC_FULL_CHARGE_ENABLED, DOMAIN
+from .const import (
+    CONF_CONTROL_ENABLED,
+    CONF_DUTCH_TARIFF_ENABLED,
+    CONF_PERIODIC_FULL_CHARGE_ENABLED,
+    DOMAIN,
+)
 from .coordinator import H3XPredictiveDispatchCoordinator
 
 
@@ -23,6 +28,13 @@ class H3XPredictiveDispatchSwitchDescription(SwitchEntityDescription):
 
 
 SWITCHES: tuple[H3XPredictiveDispatchSwitchDescription, ...] = (
+    H3XPredictiveDispatchSwitchDescription(
+        key="control_enabled",
+        translation_key="control_enabled",
+        name="Automatic control",
+        icon="mdi:auto-mode",
+        option_key=CONF_CONTROL_ENABLED,
+    ),
     H3XPredictiveDispatchSwitchDescription(
         key="dutch_tariff_enabled",
         translation_key="dutch_tariff_enabled",

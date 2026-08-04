@@ -6,7 +6,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 SENSOR_PATH = Path("custom_components/h3x_predictive_dispatch/sensor.py")
 
 

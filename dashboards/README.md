@@ -20,13 +20,11 @@ It shows:
 
 1. Install `https://github.com/shuffleznl/pylontech-fh3x-bridge` through HACS.
 2. Install `https://github.com/shuffleznl/h3x-predictive-dispatch` through HACS.
-3. Install `apexcharts-card` from HACS for the dashboard charts.
-
-The dashboard uses ApexCharts for price, dispatch, forecast, power, and SOC history.
+3. No custom Lovelace cards are required. The dashboard uses Home Assistant's native tile, entities, attribute, heading, grid, and history-graph cards.
 
 ## Install The YAML Dashboard
 
-Predictive Dispatch `v0.1.1` and newer package the dashboard inside the
+Predictive Dispatch `v0.2.1` and newer package the dashboard inside the
 HACS-managed integration directory. Point Home Assistant directly at that copy
 so future HACS upgrades refresh the dashboard automatically:
 
@@ -53,13 +51,13 @@ refresh the browser once the integration files have been replaced.
 
 ## Planned Slot Display
 
-The optimizer exposes a full `dispatch_plan` with one row per price interval, including idle rows. The dashboard intentionally hides idle rows in the visible planned-action tables and shows only charge/discharge actions plus the dedicated next charge, next discharge, and periodic full-charge sensors. The full plan is still used by the charts.
+The optimizer exposes a full `dispatch_plan` with one row per price interval. The native dashboard avoids template-generated Markdown/HTML tables and instead uses structured entity and attribute rows for the active/next charge, active/next discharge, and periodic full-charge schedule. Open a slot entity's More Info dialog for all remaining attributes.
 
 Planned values can change when Nord Pool publishes new prices, the battery SOC changes, the house load changes, the SMA/PV forecast changes, or grid-limit sensors update.
 
 ## PV And Load Display
 
-The dashboard requires `h3x_predictive_dispatch` `0.1.1` or newer. If
+The dashboard requires `h3x_predictive_dispatch` `0.2.1` or newer. If
 historical data has not accumulated yet, the optimizer uses its live-load
 fallback and forecast-quality cards remain unavailable until Recorder has
 enough samples.

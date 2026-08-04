@@ -20,7 +20,7 @@ This repository contains one HACS integration:
 - HACS.
 - Nord Pool integration configured in Home Assistant.
 - Pylontech H3X Bridge installed from `https://github.com/shuffleznl/pylontech-fh3x-bridge`.
-- Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors and an SMA Sunny Boy PV power sensor.
+- Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors, an SMA Sunny Boy PV power sensor, and a Solcast rooftop forecast API key.
 
 ## Predictive Dispatch Architecture
 
@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.1.1` and newer package the matching dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.1` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -78,7 +78,7 @@ make them overwrite each other's EMS mode and power reference every update.
 | Battery SOC | `sensor.pylontech_h3x_bridge_battery_soc` |
 | House load | `sensor.pylontech_h3x_bridge_load_power` |
 | Real-time grid import | `sensor.dsmr_reading_electricity_currently_delivered` |
-| Averaged grid import | `sensor.connect_energy_meter_electricity_average` |
+| Grid import trend | Derived internally from the configured real-time grid-import sensor and Home Assistant Recorder. |
 | Battery module count | `sensor.pylontech_h3x_bridge_battery_module_count` |
 | Battery system capacity | `sensor.pylontech_h3x_bridge_battery_system_capacity` |
 | Battery usable capacity | `sensor.pylontech_h3x_bridge_battery_usable_capacity` |
@@ -95,12 +95,13 @@ Shelly and SMA entity IDs are generated from the device names in Home Assistant,
 | Shelly Pro 3EM total home power | Set **Shelly Pro 3EM total home power sensor entity** to the Shelly total active power sensor when that sensor represents household consumption. |
 | Shelly Pro 3EM per-phase power | If no total load sensor is available, set phase A/B/C power sensors; the controller sums available phases. |
 | SMA Sunny Boy PV power | Set **SMA Sunny Boy current PV power sensor entity** to the SMA `pv_power` sensor. |
+| Solar forecast | Choose `auto`, `solcast`, or `panel_model`. Configure the API key in integration options. Hobbyist accounts should also provide their rooftop resource ID; leaving it blank uses Solcast's location-based rooftop endpoint when the account permits it. |
 | EV charger power | Optional. Select EV mode `sensor` and set the EV power entity for the cleanest session forecast; `detect` learns repeated high rectangular loads from total home power. |
 | PV orientation | Select one of `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, or `NW`. |
 | PV size | Set panel count and Wp rating. A zero panel count disables the internal PV forecast. |
 | PV inverter cap | Defaults to `2000 W` for a Sunny Boy 2.0 style setup; adjust if the inverter or export limit differs. |
 
-The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integrations/sma) exposes `pv_power` as current AC-side solar power, and the [Shelly integration](https://www.home-assistant.io/integrations/shelly/) communicates locally with the device. Home Assistant Recorder short-term statistics train the load model locally; no consumption history leaves Home Assistant.
+The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integrations/sma) exposes `pv_power` as current AC-side solar power, and the [Shelly integration](https://www.home-assistant.io/integrations/shelly/) communicates locally with the device. Home Assistant Recorder short-term statistics train the load model and derive the grid-import average/trend locally; no consumption history leaves Home Assistant. Solcast requests include only the configured rooftop resource ID or Home Assistant location and PV configuration.
 
 ## Exposed Sensors
 
@@ -184,7 +185,7 @@ The optimizer supports:
 - buy-side and sell-side tariff adders,
 - continuous, peak, and C-rate based power limits,
 - house load aware grid import/export caps,
-- real-time and 5-minute average grid import guards for charging,
+- real-time grid import plus an internally calculated 15-minute Recorder average and trend for charging guards,
 - optional Shelly load and SMA solar power inputs,
 - internal PV forecast from orientation, panel count, Wp rating, inverter cap, and current SMA power,
 - self-consumption value: discharge avoids household import before exporting, and charge uses forecast PV surplus before grid energy,
@@ -196,9 +197,11 @@ The optimizer supports:
 
 Default power settings are `11 kW` continuous and `13.8 kW` peak, with peak power only used when the price spread clears the configured extra margin. C-rate caps are applied after those economic limits: for a 6-module pack with `29.17 kWh` usable capacity, `0.5C` is `14.6 kW`, so the inverter peak still limits the final setpoint. The default grid import limit is `17.5 kW`; set it to `0` in options to disable the import guard.
 
-Charging is not intentionally spread across many hours. The optimizer still charges at the cheapest economic speed, capped by inverter power, the configured charge C-rate, BMS temperature, SOC limits, and the grid import limit. When DSMR or averaged import sensors are configured, charging headroom is based on the most conservative available reading and accounts for any already-requested battery charge power to avoid self-throttling during an active charge.
+Charging is not intentionally spread across many hours. The optimizer still charges at the cheapest economic speed, capped by inverter power, the configured charge C-rate, BMS temperature, SOC limits, and the grid import limit. Charging headroom uses the most conservative of the live import reading and its internal Recorder-derived average and accounts for any already-requested battery charge power.
 
-PV surplus charging is treated differently from forced grid charging. If the selected current slot is expected to charge only from solar surplus, the controller exposes that planned charge energy but leaves the command at idle so the H3X can remain in self-consumption behavior instead of forcing a grid-charge command. If the planned charge needs grid energy, it uses the normal H3X charge command and still respects the `17.5 kW` default import limit.
+Because the SMA PV inverter and Pylontech battery inverter are separate AC systems, H3X self-consumption mode cannot infer SMA surplus. For a `solar_storage` slot the controller therefore issues an explicit H3X charge command capped by live SMA power minus live home load and a safety margin. If measured surplus falls below minimum active power, it idles instead of importing from the grid. Solcast affects future planning; the live SMA and load readings govern the current surplus-following command.
+
+Solcast forecasts are cached across Home Assistant restarts and refresh every six hours by default, keeping hobbyist usage below the published daily request allowance. A valid cached forecast survives temporary API failures. `auto` falls back to the local panel/orientation model when Solcast is not configured or unavailable.
 
 Discharge duration is decided inside the optimizer. The `conservative`, `typical`, and `aggressive` profiles change power candidates, terminal reserve, forecast risk, minimum action duration, and action penalties. A larger battery can therefore support both morning and evening peaks when two independent cycles remain profitable after losses and wear, while flat or marginal price spreads remain idle.
 

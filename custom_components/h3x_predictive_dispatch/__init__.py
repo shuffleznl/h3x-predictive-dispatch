@@ -6,22 +6,21 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
     CONF_RESOLUTION,
     DEFAULT_RESOLUTION,
-    DOMAIN,
     PLATFORMS,
     RESOLUTIONS,
 )
 from .coordinator import H3XPredictiveDispatchCoordinator
 
-
-CONFIG_ENTRY_VERSION = 2
+CONFIG_ENTRY_VERSION = 3
 
 
 async def async_migrate_entry(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> bool:
-    """Persist the price resolution for entries created by version 1."""
+    """Persist resolution and remove the obsolete external average meter."""
     if entry.version > CONFIG_ENTRY_VERSION:
         return False
     if entry.version == CONFIG_ENTRY_VERSION:
@@ -43,6 +42,8 @@ async def async_migrate_entry(
     data[CONF_RESOLUTION] = resolution
     if CONF_RESOLUTION in options:
         options[CONF_RESOLUTION] = resolution
+    data.pop(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY, None)
+    options.pop(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY, None)
     hass.config_entries.async_update_entry(
         entry,
         data=data,

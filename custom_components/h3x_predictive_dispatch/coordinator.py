@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta
+import asyncio
 import logging
 import math
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime, timedelta
 from typing import Any
 
+from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_ACTION_START_COST,
     CONF_AREA,
     CONF_BATTERY_CAPACITY_KWH,
     CONF_BATTERY_MODULE_COUNT,
@@ -37,6 +41,7 @@ from .const import (
     CONF_DISCHARGE_POWER_MODE,
     CONF_DISCHARGE_SPREAD_MAX_HOURS,
     CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE,
+    CONF_DUTCH_TARIFF_ENABLED,
     CONF_EMS_MODE_ENTITY,
     CONF_ENABLE_PEAK_POWER,
     CONF_ENERGY_TAX_PER_KWH,
@@ -45,31 +50,30 @@ from .const import (
     CONF_EV_POWER_ENTITY,
     CONF_FORECAST_RISK_PERCENTILE,
     CONF_GRID_EXPORT_LIMIT_W,
-    CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
     CONF_GRID_IMPORT_LIMIT_W,
     CONF_GRID_IMPORT_POWER_ENTITY,
     CONF_HORIZON_HOURS,
     CONF_IDLE_EMS_MODE,
     CONF_INVERTER_FULL_SCALE_POWER_W,
-    CONF_LOAD_POWER_ENTITY,
     CONF_LOAD_FORECAST_MODE,
     CONF_LOAD_HISTORY_DAYS,
+    CONF_LOAD_POWER_ENTITY,
     CONF_MAX_BMS_TEMP_C,
     CONF_MAX_CHARGE_C_RATE,
     CONF_MAX_DISCHARGE_C_RATE,
     CONF_MAX_SOC,
-    CONF_MIN_ACTIVE_POWER_W,
     CONF_MIN_ACTION_DURATION_MINUTES,
+    CONF_MIN_ACTIVE_POWER_W,
     CONF_MIN_CHARGE_TEMP_C,
     CONF_MIN_PROFIT_MARGIN,
     CONF_MIN_SOC,
     CONF_NORDPOOL_CONFIG_ENTRY,
+    CONF_PEAK_EXTRA_MARGIN,
+    CONF_PEAK_POWER_W,
     CONF_PERIODIC_FULL_CHARGE_ENABLED,
     CONF_PERIODIC_FULL_CHARGE_INTERVAL_DAYS,
     CONF_PERIODIC_FULL_CHARGE_TARGET_SOC,
     CONF_PERIODIC_FULL_CHARGE_THRESHOLD_SOC,
-    CONF_PEAK_EXTRA_MARGIN,
-    CONF_PEAK_POWER_W,
     CONF_POWER_REF_ENTITY,
     CONF_PV_INVERTER_LIMIT_W,
     CONF_PV_ORIENTATION,
@@ -79,23 +83,25 @@ from .const import (
     CONF_RESOLUTION,
     CONF_ROUND_TRIP_EFFICIENCY,
     CONF_SELL_COST_ADDER,
-    CONF_DUTCH_TARIFF_ENABLED,
-    CONF_SUPPLIER_BUY_MARKUP,
-    CONF_SUPPLIER_SELL_MARKDOWN,
     CONF_SHELLY_PHASE_A_POWER_ENTITY,
     CONF_SHELLY_PHASE_B_POWER_ENTITY,
     CONF_SHELLY_PHASE_C_POWER_ENTITY,
     CONF_SHELLY_TOTAL_POWER_ENTITY,
-    CONF_SOLAR_POWER_ENTITY,
     CONF_SOC_ENTITY,
+    CONF_SOLAR_FORECAST_SOURCE,
+    CONF_SOLAR_POWER_ENTITY,
+    CONF_SOLCAST_API_KEY,
+    CONF_SOLCAST_RESOURCE_ID,
+    CONF_SOLCAST_UPDATE_INTERVAL_HOURS,
     CONF_STRATEGY_PROFILE,
-    CONF_ACTION_START_COST,
+    CONF_SUPPLIER_BUY_MARKUP,
+    CONF_SUPPLIER_SELL_MARKDOWN,
     CONF_TERMINAL_SOC_MODE,
     CONF_UPDATE_INTERVAL_MINUTES,
     CONF_USER_EMS_MODE,
     CONF_VAT_PERCENT,
-    DEFAULTS,
     DEFAULT_RESOLUTION,
+    DEFAULTS,
     DOMAIN,
     FORCE_H3_MAX_MODULES,
     FORCE_H3_MIN_MODULES,
@@ -110,18 +116,33 @@ from .const import (
     RESOLUTIONS,
     STRATEGY_PROFILE_SETTINGS,
 )
-from .forecast import ForecastBand, HistoricalLoadForecaster, LoadForecast
+from .forecast import (
+    ForecastBand,
+    HistoricalLoadForecaster,
+    LoadForecast,
+    PowerObservation,
+)
 from .history import RecorderHistoryLoader
 from .optimizer import (
     OptimizerSettings,
     OptimizerSlot,
     PredictiveDispatchOptimizer,
+    live_solar_charge_target_w,
+)
+from .solcast import (
+    SolcastInterval,
+    align_solcast_forecasts,
+    parse_solcast_forecasts,
+    restore_solcast_forecasts,
 )
 from .tariff import TariffSettings, retail_price
 
 LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
 LAST_FULL_CHARGE_KEY = "last_periodic_full_charge_at"
+FULL_CHARGE_SCHEDULE_STARTED_KEY = "periodic_full_charge_schedule_started_at"
+SOLCAST_CACHE_KEY = "solcast_forecast"
+SOLCAST_FETCHED_AT_KEY = "solcast_fetched_at"
 BATTERY_CAPACITY_ISSUE_ID = "battery_capacity_unconfirmed"
 PV_ORIENTATION_PROFILE: dict[str, tuple[float, float]] = {
     "N": (0.20, 0.0),
@@ -261,12 +282,20 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._state_loaded = False
         self._last_full_charge_at: datetime | None = None
+        self._full_charge_schedule_started_at: datetime | None = None
         self._last_price_fetch_errors: list[str] = []
         self._history_loader = RecorderHistoryLoader(hass)
         self._historical_observations = []
         self._history_loaded_at: datetime | None = None
         self._load_forecast_result: LoadForecast | None = None
         self._predictive_optimizer = PredictiveDispatchOptimizer()
+        self._grid_import_average_power_w: float | None = None
+        self._grid_import_trend_w_per_min: float | None = None
+        self._grid_import_sample_count = 0
+        self._solcast_forecast: list[SolcastInterval] = []
+        self._solcast_fetched_at: datetime | None = None
+        self._solcast_last_attempt_at: datetime | None = None
+        self._solcast_error: str | None = None
 
     def _option(self, key: str) -> Any:
         """Return an option value with a default fallback."""
@@ -365,6 +394,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._async_record_full_charge_if_reached(current_soc)
             slots = await self._fetch_price_slots()
             await self._async_refresh_history()
+            await self._async_refresh_grid_import_trend()
+            await self._async_refresh_solcast_forecast()
             decision = self._compute_decision(slots)
         except Exception as err:  # pylint: disable=broad-except
             LOGGER.exception("Failed to compute arbitrage decision")
@@ -386,7 +417,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_shutdown(self) -> None:
         """Shut down coordinator resources."""
-        return None
+        return
 
     async def _async_refresh_history(self) -> None:
         """Refresh Recorder training data at most once per hour."""
@@ -412,6 +443,150 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._history_loaded_at = now
 
+    async def _async_refresh_grid_import_trend(self) -> None:
+        """Derive recent grid import average and slope from Recorder history."""
+        entity_id = str(self._option(CONF_GRID_IMPORT_POWER_ENTITY)).strip()
+        samples = await self._history_loader.async_load_recent_power_samples(
+            entity_id,
+            minutes=15,
+        )
+        current = self._power_state_w(entity_id)
+        now = dt_util.now()
+        if current is not None:
+            samples.append(
+                PowerObservation(timestamp=now, load_w=max(current, 0.0))
+            )
+        if not samples:
+            self._grid_import_average_power_w = None
+            self._grid_import_trend_w_per_min = None
+            self._grid_import_sample_count = 0
+            return
+
+        deduplicated: dict[datetime, float] = {
+            row.timestamp: row.load_w for row in samples
+        }
+        ordered = sorted(deduplicated.items())
+        values = [value for _timestamp, value in ordered]
+        self._grid_import_average_power_w = sum(values) / len(values)
+        self._grid_import_sample_count = len(values)
+        if len(ordered) < 2:
+            self._grid_import_trend_w_per_min = 0.0
+            return
+
+        origin = ordered[0][0]
+        x_values = [
+            (timestamp - origin).total_seconds() / 60 for timestamp, _value in ordered
+        ]
+        x_mean = sum(x_values) / len(x_values)
+        y_mean = sum(values) / len(values)
+        denominator = sum((value - x_mean) ** 2 for value in x_values)
+        self._grid_import_trend_w_per_min = (
+            sum(
+                (x_value - x_mean) * (y_value - y_mean)
+                for x_value, y_value in zip(x_values, values, strict=True)
+            )
+            / denominator
+            if denominator > 0
+            else 0.0
+        )
+
+    async def _async_refresh_solcast_forecast(self) -> None:
+        """Refresh the cached Solcast forecast without exceeding hobbyist quotas."""
+        source = str(self._option(CONF_SOLAR_FORECAST_SOURCE))
+        api_key = str(self._option(CONF_SOLCAST_API_KEY)).strip()
+        if source == "panel_model" or not api_key:
+            self._solcast_error = None if source == "panel_model" else "not_configured"
+            return
+
+        now = dt_util.utcnow()
+        refresh_hours = float(self._option(CONF_SOLCAST_UPDATE_INTERVAL_HOURS))
+        cache_valid = any(row.end > now for row in self._solcast_forecast)
+        if (
+            cache_valid
+            and self._solcast_fetched_at is not None
+            and now - self._solcast_fetched_at < timedelta(hours=refresh_hours)
+        ):
+            return
+        if (
+            self._solcast_last_attempt_at is not None
+            and now - self._solcast_last_attempt_at < timedelta(hours=1)
+        ):
+            return
+        self._solcast_last_attempt_at = now
+
+        resource_id = str(self._option(CONF_SOLCAST_RESOURCE_ID)).strip()
+        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+        if resource_id:
+            url = f"https://api.solcast.com.au/rooftop_sites/{resource_id}/forecasts"
+            params: dict[str, Any] = {"format": "json"}
+        else:
+            url = "https://api.solcast.com.au/data/forecast/rooftop_pv_power"
+            panel_kw = (
+                float(self._option(CONF_PV_PANEL_COUNT))
+                * float(self._option(CONF_PV_PANEL_WP))
+                / 1000
+            )
+            inverter_kw = float(self._option(CONF_PV_INVERTER_LIMIT_W)) / 1000
+            params = {
+                "latitude": float(getattr(self.hass.config, "latitude", 0.0)),
+                "longitude": float(getattr(self.hass.config, "longitude", 0.0)),
+                "hours": max(int(float(self._option(CONF_HORIZON_HOURS))), 24),
+                "period": f"PT{self._configured_resolution_minutes()}M",
+                "output_parameters": (
+                    "pv_power_rooftop,pv_power_rooftop10,pv_power_rooftop90"
+                ),
+                "capacity": max(panel_kw, inverter_kw, 0.1),
+                "azimuth": self._solcast_azimuth(),
+                "format": "json",
+            }
+
+        try:
+            session = async_get_clientsession(self.hass)
+            async with asyncio.timeout(30):
+                async with session.get(url, params=params, headers=headers) as response:
+                    response.raise_for_status()
+                    payload = await response.json(content_type=None)
+            forecasts = parse_solcast_forecasts(payload)
+            if not forecasts:
+                raise ValueError("Solcast returned no usable forecast intervals")
+        except (ClientError, TimeoutError, TypeError, ValueError) as err:
+            self._solcast_error = f"{type(err).__name__}: {err}"
+            LOGGER.warning("Unable to refresh Solcast forecast: %s", self._solcast_error)
+            return
+
+        self._solcast_forecast = forecasts
+        self._solcast_fetched_at = now
+        self._solcast_error = None
+        await self._async_save_state()
+
+    def _solcast_azimuth(self) -> int:
+        """Map compass orientation to Solcast's north-based azimuth."""
+        return {
+            "N": 0,
+            "NE": -45,
+            "E": -90,
+            "SE": -135,
+            "S": 180,
+            "SW": 135,
+            "W": 90,
+            "NW": 45,
+        }.get(str(self._option(CONF_PV_ORIENTATION)).upper(), 180)
+
+    def _solcast_status(self) -> str:
+        """Return a stable, user-facing Solcast acquisition state."""
+        source = str(self._option(CONF_SOLAR_FORECAST_SOURCE))
+        if source == "panel_model":
+            return "panel_model_selected"
+        if not str(self._option(CONF_SOLCAST_API_KEY)).strip():
+            return "not_configured"
+        if self._solcast_error and self._solcast_forecast:
+            return "cached_after_error"
+        if self._solcast_error:
+            return "error"
+        if self._solcast_forecast:
+            return "ready"
+        return "waiting_for_first_forecast"
+
     async def _async_load_state(self) -> None:
         """Load persisted optimizer state."""
         if self._state_loaded:
@@ -422,7 +597,47 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             parsed = dt_util.parse_datetime(str(timestamp))
             if parsed is not None:
                 self._last_full_charge_at = dt_util.as_utc(parsed)
+        schedule_started = (stored or {}).get(FULL_CHARGE_SCHEDULE_STARTED_KEY)
+        if schedule_started:
+            parsed = dt_util.parse_datetime(str(schedule_started))
+            if parsed is not None:
+                self._full_charge_schedule_started_at = dt_util.as_utc(parsed)
+        if self._full_charge_schedule_started_at is None:
+            self._full_charge_schedule_started_at = dt_util.utcnow()
+
+        fetched_at = (stored or {}).get(SOLCAST_FETCHED_AT_KEY)
+        if fetched_at:
+            parsed = dt_util.parse_datetime(str(fetched_at))
+            if parsed is not None:
+                self._solcast_fetched_at = dt_util.as_utc(parsed)
+        self._solcast_forecast = restore_solcast_forecasts(
+            (stored or {}).get(SOLCAST_CACHE_KEY)
+        )
         self._state_loaded = True
+        await self._async_save_state()
+
+    async def _async_save_state(self) -> None:
+        """Persist periodic-charge scheduling and the Solcast cache together."""
+        await self._store.async_save(
+            {
+                LAST_FULL_CHARGE_KEY: (
+                    self._last_full_charge_at.isoformat()
+                    if self._last_full_charge_at is not None
+                    else None
+                ),
+                FULL_CHARGE_SCHEDULE_STARTED_KEY: (
+                    self._full_charge_schedule_started_at.isoformat()
+                    if self._full_charge_schedule_started_at is not None
+                    else None
+                ),
+                SOLCAST_FETCHED_AT_KEY: (
+                    self._solcast_fetched_at.isoformat()
+                    if self._solcast_fetched_at is not None
+                    else None
+                ),
+                SOLCAST_CACHE_KEY: [row.as_dict() for row in self._solcast_forecast],
+            }
+        )
 
     async def _async_record_full_charge_if_reached(self, soc: float) -> None:
         """Persist the timestamp when the pack reaches the full-charge threshold."""
@@ -440,7 +655,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         self._last_full_charge_at = now
-        await self._store.async_save({LAST_FULL_CHARGE_KEY: now.isoformat()})
+        await self._async_save_state()
 
     async def _fetch_price_slots(self) -> list[PriceSlot]:
         """Fetch today and tomorrow price slots from Home Assistant Nord Pool."""
@@ -651,22 +866,27 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         interval_minutes = self._infer_resolution_minutes(future_slots)
+        optimization_slots = list(future_slots)
+        if optimization_slots[0].start < now:
+            current = optimization_slots[0]
+            optimization_slots[0] = PriceSlot(
+                start=now,
+                end=current.end,
+                price=current.price,
+            )
         load_power_w, load_source = self._home_load_power_w()
         solar_power_w = self._positive_power_state_w(
             str(self._option(CONF_SOLAR_POWER_ENTITY)).strip()
         )
-        load_forecast = self._forecast_load(future_slots, load_power_w)
+        load_forecast = self._forecast_load(optimization_slots, load_power_w)
         self._load_forecast_result = load_forecast
         load_forecast_w = [band.p50_w for band in load_forecast.bands]
-        solar_forecast_w, solar_forecast_source, solar_forecast_scale = (
-            self._solar_forecast_for_slots(future_slots, solar_power_w)
+        solar_forecast, solar_forecast_source, solar_forecast_scale = (
+            self._solar_forecast_for_slots(optimization_slots, solar_power_w)
         )
-        solar_forecast_bands = self._solar_forecast_bands(
-            solar_forecast_w,
-            source=solar_forecast_source,
-        )
+        solar_forecast_w = [band.p50_w for band in solar_forecast]
         decision = self._run_predictive_optimizer(
-            future_slots=future_slots,
+            future_slots=optimization_slots,
             current_energy=current_energy,
             min_energy=min_energy,
             max_energy=max_energy,
@@ -676,7 +896,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             usable_capacity_kwh=usable_capacity_kwh,
             periodic_full_charge_due=force_full_charge,
             load_forecast=load_forecast,
-            solar_forecast=solar_forecast_bands,
+            solar_forecast=solar_forecast,
+            current_load_power_w=load_power_w,
+            current_solar_power_w=solar_power_w,
         )
 
         current_slot = future_slots[0]
@@ -698,9 +920,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.grid_import_power_w = self._power_state_w(
             str(self._option(CONF_GRID_IMPORT_POWER_ENTITY))
         )
-        decision.grid_import_average_power_w = self._power_state_w(
-            str(self._option(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY))
-        )
+        decision.grid_import_average_power_w = self._grid_import_average_power_w
         decision.updated_at = now.isoformat()
         decision.attributes.update(
             {
@@ -719,9 +939,13 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "grid_import_power_entity": str(
                     self._option(CONF_GRID_IMPORT_POWER_ENTITY)
                 ),
-                "grid_import_average_power_entity": str(
-                    self._option(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY)
+                "grid_import_average_source": "internal_15_minute_recorder_trend",
+                "grid_import_trend_w_per_min": (
+                    round(self._grid_import_trend_w_per_min, 1)
+                    if self._grid_import_trend_w_per_min is not None
+                    else None
                 ),
+                "grid_import_trend_samples": self._grid_import_sample_count,
                 "load_power_entity": str(self._option(CONF_LOAD_POWER_ENTITY)),
                 "home_load_power_source": load_source,
                 "shelly_total_power_entity": str(
@@ -748,6 +972,14 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
                 "solar_forecast_source": solar_forecast_source,
                 "solar_forecast_scale": round(solar_forecast_scale, 3),
+                "solcast_fetched_at": (
+                    self._solcast_fetched_at.isoformat()
+                    if self._solcast_fetched_at is not None
+                    else None
+                ),
+                "solcast_interval_count": len(self._solcast_forecast),
+                "solcast_status": self._solcast_status(),
+                "solcast_error": self._solcast_error,
                 "load_forecast_source": load_forecast.metrics.source,
                 "load_forecast_observations": load_forecast.metrics.observations,
                 "load_forecast_days": load_forecast.metrics.days_covered,
@@ -767,7 +999,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     future_slots, load_forecast.bands
                 ),
                 "solar_forecast": self._serialize_forecast_bands(
-                    future_slots, solar_forecast_bands
+                    optimization_slots, solar_forecast
                 ),
                 **periodic_full_charge,
                 "discharge_power_mode": str(self._option(CONF_DISCHARGE_POWER_MODE)),
@@ -905,6 +1137,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ]
         charge_slots = [slot for slot in charge_slots if slot is not None]
         discharge_slots = [slot for slot in discharge_slots if slot is not None]
+        now = dt_util.utcnow()
+        charge_slots = self._mark_action_slot_timing(charge_slots, now)
+        discharge_slots = self._mark_action_slot_timing(discharge_slots, now)
 
         decision.attributes["planned_charge_slots"] = charge_slots[:12]
         decision.attributes["planned_discharge_slots"] = discharge_slots[:12]
@@ -952,6 +1187,27 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.attributes["periodic_full_charge_slot"] = full_charge_slot
 
     @staticmethod
+    def _mark_action_slot_timing(
+        slots: list[dict[str, Any]],
+        now: datetime,
+    ) -> list[dict[str, Any]]:
+        """Remove expired rows and distinguish active from future actions."""
+        result: list[dict[str, Any]] = []
+        for slot in slots:
+            start = dt_util.parse_datetime(str(slot.get("start") or ""))
+            end = dt_util.parse_datetime(str(slot.get("end") or ""))
+            if start is None or end is None:
+                continue
+            start = dt_util.as_utc(start)
+            end = dt_util.as_utc(end)
+            if end <= now:
+                continue
+            row = dict(slot)
+            row["state"] = "active" if start <= now < end else "planned"
+            result.append(row)
+        return result
+
+    @staticmethod
     def _plan_slot_action(row: Any) -> str | None:
         """Return the action for a serialized plan slot."""
         if not isinstance(row, dict):
@@ -970,13 +1226,21 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return a small, UI-friendly plan-slot dictionary."""
         if not isinstance(row, dict):
             return None
+        planned_target_w = row.get("target_power_w")
+        live_target_w = row.get("live_target_power_w")
         return {
             "state": "planned",
             "start": row.get("start"),
             "end": row.get("end"),
             "action": row.get("action"),
+            "intent": row.get("intent"),
+            "execution": row.get("execution"),
             "energy_kwh": row.get("energy_kwh"),
-            "target_power_w": row.get("target_power_w"),
+            "target_power_w": (
+                live_target_w if live_target_w is not None else planned_target_w
+            ),
+            "planned_target_power_w": planned_target_w,
+            "live_surplus_w": row.get("live_surplus_w"),
             "value": row.get("value"),
             "price": row.get("price"),
             "grid_charge_kwh": row.get("grid_charge_kwh"),
@@ -1021,7 +1285,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         module_entity = str(self._option(CONF_BATTERY_MODULE_COUNT_ENTITY)).strip()
         module_count_from_entity = self._state_float(module_entity)
         if module_count_from_entity is not None:
-            modules = int(round(module_count_from_entity))
+            modules = round(module_count_from_entity)
             if self._valid_module_count(modules):
                 return self._configuration_for_modules(
                     modules,
@@ -1034,7 +1298,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             warning = None
             if (
                 module_count_from_entity is not None
-                and not self._valid_module_count(int(round(module_count_from_entity)))
+                and not self._valid_module_count(round(module_count_from_entity))
             ):
                 warning = (
                     f"module count entity {module_entity} is unavailable or outside "
@@ -1174,7 +1438,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _clamp_module_count(self, value: Any) -> int:
         """Clamp and round a module count to the supported Force H3 range."""
         try:
-            modules = int(round(float(value)))
+            modules = round(float(value))
         except (TypeError, ValueError):
             modules = int(DEFAULTS[CONF_BATTERY_MODULE_COUNT])
         return min(max(modules, FORCE_H3_MIN_MODULES), FORCE_H3_MAX_MODULES)
@@ -1213,18 +1477,14 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         target_soc = float(self._option(CONF_PERIODIC_FULL_CHARGE_TARGET_SOC))
         threshold_soc = float(self._option(CONF_PERIODIC_FULL_CHARGE_THRESHOLD_SOC))
         now = dt_util.utcnow()
-        next_due_at = None
-        due = False
-
-        if enabled and self._last_full_charge_at is not None:
-            next_due = self._last_full_charge_at + timedelta(days=interval_days)
-            next_due_at = next_due.isoformat()
-            due = now >= next_due
-        elif enabled:
-            due = soc < threshold_soc
-
-        if soc >= threshold_soc:
-            due = False
+        anchor = (
+            self._last_full_charge_at
+            or self._full_charge_schedule_started_at
+            or now
+        )
+        next_due = anchor + timedelta(days=interval_days)
+        next_due_at = next_due.isoformat() if enabled else None
+        due = enabled and now >= next_due and soc < threshold_soc
 
         return {
             "periodic_full_charge_enabled": enabled,
@@ -1376,6 +1636,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         periodic_full_charge_due: bool,
         load_forecast: LoadForecast,
         solar_forecast: list[ForecastBand],
+        current_load_power_w: float | None,
+        current_solar_power_w: float | None,
     ) -> Decision:
         """Run the modular forecast-aware model-predictive optimizer."""
         tariff = self._tariff_settings()
@@ -1447,16 +1709,37 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         first = result.schedule[0]
         first_row = plan[0]
         action = first.action
+        command_target_power_w = abs(first.target_power_w)
         reason = f"{first.intent}: {result.reason}"
-        # In self-consumption mode the inverter captures forecast solar surplus
-        # without a forced grid-charge command. Keep the economic plan visible,
-        # but avoid turning forecast error into accidental grid import.
         if action == "charge" and first.intent == "solar_storage":
-            action = "idle"
-            reason = (
-                "solar surplus forecast; self-consumption mode should store it "
-                "without forced grid charging"
+            live_surplus_w = (
+                max(current_solar_power_w - current_load_power_w, 0.0)
+                if current_solar_power_w is not None
+                and current_load_power_w is not None
+                else 0.0
             )
+            command_target_power_w = live_solar_charge_target_w(
+                command_target_power_w,
+                current_solar_power_w,
+                current_load_power_w,
+            )
+            if command_target_power_w < float(
+                self._option(CONF_MIN_ACTIVE_POWER_W)
+            ):
+                action = "idle"
+                command_target_power_w = 0.0
+                reason = (
+                    "solar storage planned, but live SMA surplus is below the "
+                    "minimum forced-charge power"
+                )
+            else:
+                reason = (
+                    "live SMA surplus charge; forced target follows measured "
+                    "solar minus home load"
+                )
+            first_row["execution"] = "live_surplus_following"
+            first_row["live_surplus_w"] = round(live_surplus_w, 1)
+            first_row["live_target_power_w"] = round(command_target_power_w, 1)
 
         today = dt_util.now().date()
         planned_charge = sum(
@@ -1488,9 +1771,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision = Decision(
             action=action,
             reason=reason,
-            target_power_w=abs(first.target_power_w) if action != "idle" else 0.0,
+            target_power_w=command_target_power_w if action != "idle" else 0.0,
             target_power_percent=(
-                self._power_to_percent(action, abs(first.target_power_w))
+                self._power_to_percent(action, command_target_power_w)
                 if action != "idle"
                 else 0.0
             ),
@@ -1534,20 +1817,18 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         future_slots: list[PriceSlot],
         current_solar_power_w: float | None,
-    ) -> tuple[list[float], str, float]:
-        """Return a simple orientation-based PV forecast aligned to price slots."""
+    ) -> tuple[list[ForecastBand], str, float]:
+        """Return Solcast forecasts with a calibrated local-model fallback."""
         raw_forecast = [self._solar_power_model_w(slot) for slot in future_slots]
         panel_count = float(self._option(CONF_PV_PANEL_COUNT))
         panel_wp = float(self._option(CONF_PV_PANEL_WP))
         solar_entity = str(self._option(CONF_SOLAR_POWER_ENTITY)).strip()
-        if panel_count <= 0 or panel_wp <= 0:
-            return [0.0 for _slot in future_slots], "disabled_panel_config", 1.0
-
         scale = 1.0
         source = "panel_model"
         measured_w = max(current_solar_power_w or 0.0, 0.0)
         current_model_w = raw_forecast[0] if raw_forecast else 0.0
-        if solar_entity and measured_w > 50.0 and current_model_w > 50.0:
+        panel_enabled = panel_count > 0 and panel_wp > 0
+        if panel_enabled and solar_entity and measured_w > 50.0 and current_model_w > 50.0:
             scale = min(max(measured_w / current_model_w, 0.25), 1.5)
             source = "panel_model_calibrated_by_sma_power"
 
@@ -1556,9 +1837,49 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             min(power_w * scale, limit_w) if limit_w > 0 else power_w * scale
             for power_w in raw_forecast
         ]
-        if solar_entity and scaled and current_solar_power_w is not None:
-            scaled[0] = measured_w
-        return [round(max(power_w, 0.0), 1) for power_w in scaled], source, scale
+        if not panel_enabled:
+            scaled = [0.0 for _slot in future_slots]
+            source = "disabled_panel_config"
+        panel_bands = self._solar_forecast_bands(scaled, source=source)
+
+        selected_source = str(self._option(CONF_SOLAR_FORECAST_SOURCE))
+        solcast_aligned = align_solcast_forecasts(
+            self._solcast_forecast,
+            future_slots,
+        )
+        use_solcast = selected_source in {"auto", "solcast"} and any(
+            band is not None for band in solcast_aligned
+        )
+        if use_solcast:
+            bands = [
+                solcast_band or panel_band
+                for solcast_band, panel_band in zip(
+                    solcast_aligned,
+                    panel_bands,
+                    strict=True,
+                )
+            ]
+            source = (
+                "solcast_cached_with_panel_fallback"
+                if any(band is None for band in solcast_aligned)
+                else "solcast"
+            )
+            scale = 1.0
+        else:
+            bands = panel_bands
+            if selected_source == "solcast":
+                source = "solcast_unavailable_panel_fallback"
+
+        if solar_entity and bands and current_solar_power_w is not None:
+            bands[0] = ForecastBand(
+                p10_w=max(measured_w * 0.9, 0.0),
+                p50_w=measured_w,
+                p90_w=measured_w * 1.1,
+                samples=1,
+                confidence=0.95,
+            )
+            source += "_live_sma_current_slot"
+        return bands, source, scale
 
     def _solar_power_model_w(self, slot: PriceSlot) -> float:
         """Estimate PV power for a slot from panel size, orientation, and daylight."""
@@ -1766,7 +2087,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Infer the active price resolution from the first slot."""
         if not slots:
             return None
-        return int(round(slots[0].duration_hours * 60))
+        return round(slots[0].duration_hours * 60)
 
     def _serialize_price_slot(self, slot: PriceSlot) -> dict[str, Any]:
         """Serialize wholesale and effective retail prices."""

@@ -185,6 +185,21 @@ class _Node:
     transition_cost: float
 
 
+def live_solar_charge_target_w(
+    planned_target_w: float,
+    current_solar_power_w: float | None,
+    current_load_power_w: float | None,
+    *,
+    safety_margin_w: float = 100.0,
+) -> float:
+    """Cap forced charging at measured AC-coupled PV surplus."""
+    if current_solar_power_w is None or current_load_power_w is None:
+        return 0.0
+    measured_surplus_w = max(current_solar_power_w - current_load_power_w, 0.0)
+    usable_surplus_w = max(measured_surplus_w - max(safety_margin_w, 0.0), 0.0)
+    return min(max(planned_target_w, 0.0), usable_surplus_w)
+
+
 class PredictiveDispatchOptimizer:
     """Forward dynamic program with action-state and forecast-risk costs."""
 

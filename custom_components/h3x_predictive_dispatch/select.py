@@ -17,6 +17,7 @@ from .const import (
     CONF_EV_FORECAST_MODE,
     CONF_LOAD_FORECAST_MODE,
     CONF_PV_ORIENTATION,
+    CONF_SOLAR_FORECAST_SOURCE,
     CONF_STRATEGY_PROFILE,
     CONF_TERMINAL_SOC_MODE,
     DISCHARGE_POWER_MODES,
@@ -24,6 +25,7 @@ from .const import (
     EV_FORECAST_MODES,
     LOAD_FORECAST_MODES,
     PV_ORIENTATIONS,
+    SOLAR_FORECAST_SOURCES,
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
 )
@@ -86,6 +88,14 @@ SELECTS: tuple[H3XPredictiveDispatchSelectDescription, ...] = (
         icon="mdi:compass",
         option_key=CONF_PV_ORIENTATION,
         options=PV_ORIENTATIONS,
+    ),
+    H3XPredictiveDispatchSelectDescription(
+        key="solar_forecast_source",
+        translation_key="solar_forecast_source",
+        name="Solar forecast source",
+        icon="mdi:weather-partly-cloudy",
+        option_key=CONF_SOLAR_FORECAST_SOURCE,
+        options=SOLAR_FORECAST_SOURCES,
     ),
 )
 
@@ -172,5 +182,11 @@ class H3XPredictiveDispatchSelect(CoordinatorEntity[H3XPredictiveDispatchCoordin
                 "SW": "south-west-facing plane, afternoon biased",
                 "W": "west-facing plane, afternoon biased",
                 "NW": "north-west-facing plane, late-afternoon biased",
+            }
+        if self.entity_description.option_key == CONF_SOLAR_FORECAST_SOURCE:
+            return {
+                "auto": "use Solcast when configured, otherwise use the local panel model",
+                "solcast": "use Solcast and retain the last valid cache during API outages",
+                "panel_model": "use the local orientation and daylight model without cloud forecasts",
             }
         return {}

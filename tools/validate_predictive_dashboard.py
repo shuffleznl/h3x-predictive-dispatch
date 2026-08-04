@@ -26,23 +26,29 @@ def main() -> None:
     required = (
         "title: H3X Predictive Dispatch",
         "sensor.pylontech_h3x_predictive_dispatch_decision",
-        "sensor.pylontech_h3x_predictive_dispatch_price_plan",
         "sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost",
         "sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost",
         "select.pylontech_h3x_predictive_dispatch_load_forecast_mode",
         "select.pylontech_h3x_predictive_dispatch_ev_forecast_mode",
+        "switch.pylontech_h3x_predictive_dispatch_automatic_control",
+        "select.pylontech_h3x_predictive_dispatch_solar_forecast_source",
         "switch.pylontech_h3x_predictive_dispatch_dutch_retail_tariff",
         "number.pylontech_h3x_predictive_dispatch_forecast_risk_percentile",
         "number.pylontech_h3x_predictive_dispatch_minimum_action_duration",
-        "p10_w",
-        "p90_w",
-        "confidence",
+        "type: history-graph",
+        "attribute: solcast_fetched_at",
+        "attribute: grid_import_trend_w_per_min",
+        "Active or next forced charge",
+        "Price assumptions",
     )
     for token in required:
         if token not in source:
             raise AssertionError(f"dashboard missing {token!r}")
     if "pylontech_h3x_energy_arbitrage" in source:
         raise AssertionError("dashboard still references the conflicting legacy domain")
+    for forbidden in ("custom:apexcharts-card", "type: markdown", "<table", "<tr>"):
+        if forbidden in source:
+            raise AssertionError(f"dashboard still uses unsupported {forbidden!r}")
 
 
 if __name__ == "__main__":

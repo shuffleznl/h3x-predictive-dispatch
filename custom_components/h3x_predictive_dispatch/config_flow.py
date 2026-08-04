@@ -5,13 +5,20 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
+    CONF_ACTION_START_COST,
     CONF_AREA,
     CONF_BATTERY_CAPACITY_KWH,
+    CONF_BATTERY_MODULE_COUNT,
+    CONF_BATTERY_MODULE_COUNT_ENTITY,
     CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_KWH,
@@ -23,11 +30,11 @@ from .const import (
     CONF_CURRENCY,
     CONF_CYCLE_COST,
     CONF_DIRECTION_CHANGE_COST,
-    CONF_DUTCH_TARIFF_ENABLED,
     CONF_DISCHARGE_LIMIT_SOC_ENTITY,
     CONF_DISCHARGE_POWER_MODE,
     CONF_DISCHARGE_SPREAD_MAX_HOURS,
     CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE,
+    CONF_DUTCH_TARIFF_ENABLED,
     CONF_EMS_MODE_ENTITY,
     CONF_ENABLE_PEAK_POWER,
     CONF_ENERGY_TAX_PER_KWH,
@@ -36,33 +43,30 @@ from .const import (
     CONF_EV_POWER_ENTITY,
     CONF_FORECAST_RISK_PERCENTILE,
     CONF_GRID_EXPORT_LIMIT_W,
-    CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
     CONF_GRID_IMPORT_LIMIT_W,
     CONF_GRID_IMPORT_POWER_ENTITY,
     CONF_HORIZON_HOURS,
     CONF_IDLE_EMS_MODE,
     CONF_INVERTER_FULL_SCALE_POWER_W,
-    CONF_LOAD_POWER_ENTITY,
     CONF_LOAD_FORECAST_MODE,
     CONF_LOAD_HISTORY_DAYS,
+    CONF_LOAD_POWER_ENTITY,
     CONF_MAX_BMS_TEMP_C,
     CONF_MAX_CHARGE_C_RATE,
     CONF_MAX_DISCHARGE_C_RATE,
     CONF_MAX_SOC,
-    CONF_MIN_ACTIVE_POWER_W,
     CONF_MIN_ACTION_DURATION_MINUTES,
+    CONF_MIN_ACTIVE_POWER_W,
     CONF_MIN_CHARGE_TEMP_C,
     CONF_MIN_PROFIT_MARGIN,
     CONF_MIN_SOC,
-    CONF_BATTERY_MODULE_COUNT,
-    CONF_BATTERY_MODULE_COUNT_ENTITY,
     CONF_NORDPOOL_CONFIG_ENTRY,
+    CONF_PEAK_EXTRA_MARGIN,
+    CONF_PEAK_POWER_W,
     CONF_PERIODIC_FULL_CHARGE_ENABLED,
     CONF_PERIODIC_FULL_CHARGE_INTERVAL_DAYS,
     CONF_PERIODIC_FULL_CHARGE_TARGET_SOC,
     CONF_PERIODIC_FULL_CHARGE_THRESHOLD_SOC,
-    CONF_PEAK_EXTRA_MARGIN,
-    CONF_PEAK_POWER_W,
     CONF_POWER_REF_ENTITY,
     CONF_PV_INVERTER_LIMIT_W,
     CONF_PV_ORIENTATION,
@@ -72,13 +76,16 @@ from .const import (
     CONF_RESOLUTION,
     CONF_ROUND_TRIP_EFFICIENCY,
     CONF_SELL_COST_ADDER,
-    CONF_ACTION_START_COST,
     CONF_SHELLY_PHASE_A_POWER_ENTITY,
     CONF_SHELLY_PHASE_B_POWER_ENTITY,
     CONF_SHELLY_PHASE_C_POWER_ENTITY,
     CONF_SHELLY_TOTAL_POWER_ENTITY,
-    CONF_SOLAR_POWER_ENTITY,
     CONF_SOC_ENTITY,
+    CONF_SOLAR_FORECAST_SOURCE,
+    CONF_SOLAR_POWER_ENTITY,
+    CONF_SOLCAST_API_KEY,
+    CONF_SOLCAST_RESOURCE_ID,
+    CONF_SOLCAST_UPDATE_INTERVAL_HOURS,
     CONF_STRATEGY_PROFILE,
     CONF_SUPPLIER_BUY_MARKUP,
     CONF_SUPPLIER_SELL_MARKDOWN,
@@ -91,12 +98,12 @@ from .const import (
     DEFAULTS,
     DISCHARGE_POWER_MODES,
     DOMAIN,
+    EV_FORECAST_MODES,
     FORCE_H3_MAX_MODULES,
     FORCE_H3_MIN_MODULES,
     FORCE_H3_SYSTEM_CAPACITY_KWH,
     FORCE_H3_USABLE_CAPACITY_KWH,
     FORCE_H3_USABLE_DOD,
-    EV_FORECAST_MODES,
     LOAD_FORECAST_MODES,
     NORDPOOL_AREAS,
     NORDPOOL_CONF_AREAS,
@@ -104,6 +111,7 @@ from .const import (
     NORDPOOL_DOMAIN,
     PV_ORIENTATIONS,
     RESOLUTIONS,
+    SOLAR_FORECAST_SOURCES,
     STRATEGY_PROFILE_SETTINGS,
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
@@ -113,7 +121,7 @@ from .const import (
 class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
-    VERSION = 2
+    VERSION = 3
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -249,12 +257,29 @@ def _schema(
                 default=data[CONF_GRID_IMPORT_POWER_ENTITY],
             ): str,
             vol.Optional(
-                CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
-                default=data[CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY],
-            ): str,
-            vol.Optional(
                 CONF_SOLAR_POWER_ENTITY, default=data[CONF_SOLAR_POWER_ENTITY]
             ): str,
+            vol.Optional(
+                CONF_SOLAR_FORECAST_SOURCE,
+                default=data[CONF_SOLAR_FORECAST_SOURCE],
+            ): vol.In(SOLAR_FORECAST_SOURCES),
+            vol.Optional(
+                CONF_SOLCAST_API_KEY,
+                default=data[CONF_SOLCAST_API_KEY],
+            ): TextSelector(
+                TextSelectorConfig(
+                    type=TextSelectorType.PASSWORD,
+                    autocomplete="current-password",
+                )
+            ),
+            vol.Optional(
+                CONF_SOLCAST_RESOURCE_ID,
+                default=data[CONF_SOLCAST_RESOURCE_ID],
+            ): str,
+            vol.Optional(
+                CONF_SOLCAST_UPDATE_INTERVAL_HOURS,
+                default=data[CONF_SOLCAST_UPDATE_INTERVAL_HOURS],
+            ): vol.All(vol.Coerce(float), vol.Range(min=3.0, max=24.0)),
             vol.Optional(
                 CONF_PV_ORIENTATION, default=data[CONF_PV_ORIENTATION]
             ): vol.In(PV_ORIENTATIONS),
@@ -511,7 +536,7 @@ def _apply_module_count_settings(data: dict[str, Any]) -> dict[str, Any]:
     """Derive datasheet Force H3 capacities from the configured module count."""
     updated = dict(data)
     if CONF_BATTERY_MODULE_COUNT in updated:
-        modules = int(round(float(updated[CONF_BATTERY_MODULE_COUNT])))
+        modules = round(float(updated[CONF_BATTERY_MODULE_COUNT]))
         modules = min(max(modules, FORCE_H3_MIN_MODULES), FORCE_H3_MAX_MODULES)
         updated[CONF_BATTERY_MODULE_COUNT] = float(modules)
         updated[CONF_BATTERY_CAPACITY_KWH] = FORCE_H3_SYSTEM_CAPACITY_KWH[modules]
@@ -532,12 +557,18 @@ def _validate_user_input(data: dict[str, Any]) -> dict[str, str]:
     full_scale = float(data[CONF_INVERTER_FULL_SCALE_POWER_W])
     full_charge_target = float(data[CONF_PERIODIC_FULL_CHARGE_TARGET_SOC])
     full_charge_threshold = float(data[CONF_PERIODIC_FULL_CHARGE_THRESHOLD_SOC])
-    module_count = int(round(float(data[CONF_BATTERY_MODULE_COUNT])))
+    module_count = round(float(data[CONF_BATTERY_MODULE_COUNT]))
     capacity_kwh = float(data[CONF_BATTERY_CAPACITY_KWH])
     usable_capacity_kwh = float(data[CONF_BATTERY_USABLE_CAPACITY_KWH])
     expected_capacity = FORCE_H3_SYSTEM_CAPACITY_KWH[module_count]
     expected_usable_capacity = FORCE_H3_USABLE_CAPACITY_KWH[module_count]
     theoretical_usable = round(expected_capacity * FORCE_H3_USABLE_DOD, 2)
+
+    if (
+        data.get(CONF_SOLAR_FORECAST_SOURCE) == "solcast"
+        and not str(data.get(CONF_SOLCAST_API_KEY) or "").strip()
+    ):
+        errors[CONF_SOLCAST_API_KEY] = "solcast_api_key_required"
 
     if max(min_soc, reserve_soc) >= max_soc:
         errors[CONF_MAX_SOC] = "soc_range"

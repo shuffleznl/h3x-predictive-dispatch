@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
 
@@ -56,12 +55,15 @@ def main() -> None:
             raise AssertionError(f"{key} missing from translations options form")
 
     required_tokens = (
+        "STORAGE_VERSION = 1",
         "Store(",
         "LAST_FULL_CHARGE_KEY",
+        "FULL_CHARGE_SCHEDULE_STARTED_KEY",
         "_async_record_full_charge_if_reached",
         "_periodic_full_charge_state",
         "periodic_full_charge_due=force_full_charge",
         "periodic_full_charge_target_soc",
+        "anchor + timedelta(days=interval_days)",
     )
     for token in required_tokens:
         if token not in coordinator_source:

@@ -30,6 +30,7 @@ def load_module(name: str):
 
 
 forecast_module = load_module("forecast")
+solcast_module = load_module("solcast")
 optimizer_module = load_module("optimizer")
 tariff_module = load_module("tariff")
 ForecastBand = forecast_module.ForecastBand
@@ -38,8 +39,11 @@ PowerObservation = forecast_module.PowerObservation
 OptimizerSettings = optimizer_module.OptimizerSettings
 OptimizerSlot = optimizer_module.OptimizerSlot
 PredictiveDispatchOptimizer = optimizer_module.PredictiveDispatchOptimizer
+live_solar_charge_target_w = optimizer_module.live_solar_charge_target_w
 TariffSettings = tariff_module.TariffSettings
 retail_price = tariff_module.retail_price
+align_solcast_forecasts = solcast_module.align_solcast_forecasts
+parse_solcast_forecasts = solcast_module.parse_solcast_forecasts
 
 
 def slots(prices: list[float], load_w: float = 1200.0) -> list[OptimizerSlot]:
@@ -151,6 +155,44 @@ def validate_ev_detection() -> None:
     assert max(band.ev_w for band in forecast.bands) > 1000.0
 
 
+def validate_solcast_alignment() -> None:
+    """Solcast half-hours must be overlap-weighted into market quarters."""
+    payload = {
+        "forecasts": [
+            {
+                "period_end": "2026-08-03T00:30:00Z",
+                "period": "PT30M",
+                "pv_estimate": 1.5,
+                "pv_estimate10": 1.0,
+                "pv_estimate90": 2.0,
+            }
+        ]
+    }
+    intervals = parse_solcast_forecasts(payload)
+    target = [
+        type(
+            "Slot",
+            (),
+            {
+                "start": datetime(2026, 8, 3, 0, 0, tzinfo=timezone.utc),
+                "end": datetime(2026, 8, 3, 0, 15, tzinfo=timezone.utc),
+            },
+        )()
+    ]
+    aligned = align_solcast_forecasts(intervals, target)
+    assert aligned[0] is not None
+    assert aligned[0].p10_w == 1000.0
+    assert aligned[0].p50_w == 1500.0
+    assert aligned[0].p90_w == 2000.0
+
+
+def validate_live_solar_surplus_target() -> None:
+    """AC-coupled PV must produce an explicit surplus-limited charge target."""
+    assert live_solar_charge_target_w(4000.0, 3000.0, 1200.0) == 1700.0
+    assert live_solar_charge_target_w(4000.0, 1000.0, 1200.0) == 0.0
+    assert live_solar_charge_target_w(4000.0, None, 1200.0) == 0.0
+
+
 def _windows(schedule: list[object], action: str) -> list[int]:
     """Return starting indexes of contiguous action windows."""
     starts = []
@@ -169,6 +211,8 @@ def main() -> None:
     validate_two_peak_schedule()
     validate_grid_limit()
     validate_ev_detection()
+    validate_solcast_alignment()
+    validate_live_solar_surplus_target()
     print("predictive dispatch simulations passed")
 
 

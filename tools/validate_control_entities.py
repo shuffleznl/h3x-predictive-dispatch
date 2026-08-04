@@ -6,7 +6,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
 
@@ -72,7 +71,8 @@ def main() -> None:
         "discharge_spread_price_tolerance",
         "discharge_spread_max_hours",
         "grid_import_power_entity",
-        "grid_import_average_power_entity",
+        "grid_import_average_source",
+        "grid_import_trend_w_per_min",
         "shelly_total_power_entity",
         "shelly_phase_a_power_entity",
         "shelly_phase_b_power_entity",
@@ -102,6 +102,8 @@ def main() -> None:
         "_battery_configuration",
         "_home_load_power_w",
         "_solar_forecast_for_slots",
+        "_async_refresh_grid_import_trend",
+        "_async_refresh_solcast_forecast",
     ):
         if token not in coordinator_source and token not in const_source:
             raise AssertionError(f"{token} missing from control wiring")
@@ -112,6 +114,8 @@ def main() -> None:
 
     if 'key="reason"' not in sensor_source:
         raise AssertionError("decision reason sensor is missing")
+    if 'key="control_enabled"' not in read(INTEGRATION / "switch.py"):
+        raise AssertionError("automatic control switch is missing")
     if "CONF_BATTERY_CAPACITY_KWH: 20.0" in const_source:
         raise AssertionError("old 20 kWh scaffold capacity must not be the default")
     if "FORCE_H3_MODULE_CAPACITY_KWH = 5.12" not in const_source:
@@ -141,8 +145,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.1.1"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.1.1")
+    if '"version": "0.2.1"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.1")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -151,20 +155,26 @@ def main() -> None:
         raise AssertionError("Nord Pool price fetch must fall back to hourly prices")
     if "{CONF_NORDPOOL_CONFIG_ENTRY: entry.entry_id}" in config_flow_source:
         raise AssertionError("setup defaults must not persist a volatile Nord Pool entry id")
-    if "VERSION = 2" not in config_flow_source:
-        raise AssertionError("config flow version must migrate persisted resolution")
+    if "VERSION = 3" not in config_flow_source:
+        raise AssertionError("config flow version must migrate obsolete sensor settings")
     if "_normalize_resolution(user_input)" not in config_flow_source:
         raise AssertionError("config flow must normalize the submitted resolution")
     if "async_migrate_entry" not in init_source:
         raise AssertionError("version 1 entries need a resolution migration")
     if "data[CONF_RESOLUTION] = resolution" not in init_source:
         raise AssertionError("migration must persist the configured resolution")
+    if "data.pop(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY, None)" not in init_source:
+        raise AssertionError("migration must remove the obsolete average sensor")
+    if "CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY" in config_flow_source:
+        raise AssertionError("external average power must not appear in config flow")
     if "_configured_resolution_minutes" not in coordinator_source:
         raise AssertionError("coordinator must expose configured resolution fallback")
     if 'key="discharge_power_mode"' not in read(INTEGRATION / "select.py"):
         raise AssertionError("discharge power mode select is missing")
     if 'key="pv_orientation"' not in read(INTEGRATION / "select.py"):
         raise AssertionError("PV orientation select is missing")
+    if 'key="solar_forecast_source"' not in read(INTEGRATION / "select.py"):
+        raise AssertionError("solar forecast source select is missing")
     number_source = read(INTEGRATION / "number.py")
     for token in (
         "battery_module_count",
@@ -175,6 +185,7 @@ def main() -> None:
         "pv_panel_count",
         "pv_panel_wp",
         "pv_inverter_limit",
+        "solcast_update_interval",
     ):
         if token not in number_source:
             raise AssertionError(f"{token} number control is missing")

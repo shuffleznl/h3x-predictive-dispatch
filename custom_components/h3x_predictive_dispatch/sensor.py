@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -25,7 +26,6 @@ from .const import (
     NORDPOOL_DOMAIN,
 )
 from .coordinator import H3XPredictiveDispatchCoordinator
-
 
 MONETARY_SENSOR_KEYS = frozenset(
     {
@@ -109,10 +109,16 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "shelly_phase_b_power_entity",
             "shelly_phase_c_power_entity",
             "grid_import_power_entity",
-            "grid_import_average_power_entity",
+            "grid_import_average_source",
+            "grid_import_trend_w_per_min",
+            "grid_import_trend_samples",
             "solar_power_entity",
             "solar_forecast_source",
             "solar_forecast_scale",
+            "solcast_fetched_at",
+            "solcast_interval_count",
+            "solcast_status",
+            "solcast_error",
             "load_forecast_source",
             "load_forecast_observations",
             "load_forecast_days",
@@ -224,6 +230,8 @@ def _slot_state(data: dict[str, Any], key: str) -> str:
     """Return a stable sensor state for a planned slot attribute."""
     slot = _attribute(data, key)
     if isinstance(slot, dict):
+        if slot.get("state") == "active":
+            return "active"
         start = slot.get("start")
         if start:
             return str(start)

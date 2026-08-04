@@ -6,7 +6,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
 
@@ -51,6 +50,9 @@ def main() -> None:
         "CONF_SHELLY_PHASE_B_POWER_ENTITY",
         "CONF_SHELLY_PHASE_C_POWER_ENTITY",
         "CONF_SOLAR_POWER_ENTITY",
+        "CONF_SOLAR_FORECAST_SOURCE",
+        "CONF_SOLCAST_API_KEY",
+        "CONF_SOLCAST_RESOURCE_ID",
         "CONF_PV_ORIENTATION",
         "CONF_PV_PANEL_COUNT",
         "CONF_PV_PANEL_WP",
@@ -72,7 +74,11 @@ def main() -> None:
         "_solar_noon_hour",
         "_run_predictive_optimizer",
         "_grid_charge_headroom_w",
-        "solar surplus forecast",
+        "live SMA surplus charge",
+        "live_surplus_following",
+        "_async_refresh_grid_import_trend",
+        "_async_refresh_solcast_forecast",
+        "_solcast_status",
     ):
         if token not in coordinator_source:
             raise AssertionError(f"{token} missing from coordinator wiring")
@@ -112,6 +118,12 @@ def main() -> None:
             raise AssertionError(f"{token} missing from number controls")
     if "pv_orientation" not in select_source:
         raise AssertionError("pv_orientation select is missing")
+    if "solar_forecast_source" not in select_source:
+        raise AssertionError("solar forecast source select is missing")
+    if "CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY" in config_source:
+        raise AssertionError("external average power must not be configurable")
+    if not (INTEGRATION / "solcast.py").exists():
+        raise AssertionError("Solcast parser and alignment module is missing")
 
 
 if __name__ == "__main__":
