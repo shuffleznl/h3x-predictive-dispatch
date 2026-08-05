@@ -200,10 +200,10 @@ views:
             entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
             name: Measured SMA PV now
           - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_power
+            entity: sensor.pylontech_h3x_predictive_dispatch_load_forecast_next_interval
             name: Load forecast, next interval
           - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power
+            entity: sensor.pylontech_h3x_predictive_dispatch_solar_forecast_next_interval
             name: Solar forecast, next interval
 
       - type: grid
@@ -263,13 +263,13 @@ views:
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
             name: Available battery charge headroom
           - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            entity: sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status
             attribute: measurement_source
             name: Active Shelly measurement source
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+          - entity: sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status
             name: Recorder trend status
           - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            entity: sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status
             attribute: entity
             name: Selected Shelly entity
           - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit

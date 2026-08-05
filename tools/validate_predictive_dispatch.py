@@ -68,6 +68,27 @@ def slots(prices: list[float], load_w: float = 1200.0) -> list[OptimizerSlot]:
     return result
 
 
+def retail_slots(
+    wholesale_prices: list[float],
+    load_w: float,
+) -> list[OptimizerSlot]:
+    """Build slots with separate Dutch retail import and export prices."""
+    result = slots(wholesale_prices, load_w=load_w)
+    for index, wholesale_price in enumerate(wholesale_prices):
+        price = retail_price(wholesale_price, TariffSettings())
+        original = result[index]
+        result[index] = OptimizerSlot(
+            start=original.start,
+            end=original.end,
+            wholesale_price=wholesale_price,
+            buy_price=price.buy,
+            sell_price=price.sell,
+            load=original.load,
+            solar=original.solar,
+        )
+    return result
+
+
 def settings(**overrides: object) -> OptimizerSettings:
     """Return a six-module H3 test configuration."""
     values: dict[str, object] = {
@@ -120,6 +141,37 @@ def validate_two_peak_schedule() -> None:
     assert len(charge_windows) >= 2, charge_windows
     assert len(discharge_windows) >= 2, discharge_windows
     assert result.estimated_savings > 0
+
+
+def validate_night_charge_for_morning_peak() -> None:
+    """Cheap night imports must cover an expensive morning household load."""
+    prices = [0.01] * 16 + [0.16] * 12 + [0.07] * 8
+    result = PredictiveDispatchOptimizer().optimize(
+        retail_slots(prices, load_w=3000.0),
+        settings(initial_energy_kwh=10.0, terminal_energy_kwh=10.0),
+    )
+    assert any(row.action == "charge" for row in result.schedule[:16])
+    assert any(row.action == "discharge" for row in result.schedule[16:28])
+    assert result.estimated_savings > 0
+
+
+def validate_night_charge_export_threshold() -> None:
+    """Night charging for export must require a materially larger spread."""
+    moderate_prices = [0.01] * 16 + [0.16] * 12 + [0.07] * 8
+    moderate = PredictiveDispatchOptimizer().optimize(
+        retail_slots(moderate_prices, load_w=0.0),
+        settings(initial_energy_kwh=10.0, terminal_energy_kwh=10.0),
+    )
+    assert not any(row.action != "idle" for row in moderate.schedule)
+
+    export_prices = [0.01] * 16 + [0.32] * 12 + [0.07] * 8
+    export = PredictiveDispatchOptimizer().optimize(
+        retail_slots(export_prices, load_w=0.0),
+        settings(initial_energy_kwh=10.0, terminal_energy_kwh=10.0),
+    )
+    assert any(row.action == "charge" for row in export.schedule[:16])
+    assert any(row.action == "discharge" for row in export.schedule[16:28])
+    assert export.estimated_savings > 0
 
 
 def validate_grid_limit() -> None:
@@ -262,6 +314,8 @@ def main() -> None:
     validate_tariff()
     validate_flat_prices_do_not_cycle()
     validate_two_peak_schedule()
+    validate_night_charge_for_morning_peak()
+    validate_night_charge_export_threshold()
     validate_grid_limit()
     validate_ev_detection()
     validate_solcast_alignment()

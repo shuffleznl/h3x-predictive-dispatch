@@ -164,8 +164,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.5"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.5")
+    if '"version": "0.2.6"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.6")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:

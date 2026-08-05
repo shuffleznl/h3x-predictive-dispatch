@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.5` and newer package the matching native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.6` and newer package the matching entity-validated native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -121,9 +121,9 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 - `sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average`
 - `sensor.pylontech_h3x_predictive_dispatch_grid_import_trend`
 - `sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom`
-- `sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status`
-- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_power`
-- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power`
+- `sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status`
+- `sensor.pylontech_h3x_predictive_dispatch_load_forecast_next_interval`
+- `sensor.pylontech_h3x_predictive_dispatch_solar_forecast_next_interval`
 - `sensor.pylontech_h3x_predictive_dispatch_next_charge_slot`
 - `sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot`
 - `sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot`
@@ -212,6 +212,10 @@ Default power settings are `11 kW` continuous and `13.8 kW` peak, with peak powe
 
 Charging is not intentionally spread across many hours. The rolling optimizer charges at the cheapest economic speed needed to support later household consumption or export, capped by inverter power, the configured charge C-rate, BMS temperature, SOC limits, and the grid import limit. When a slot contains both PV surplus and economically justified grid energy, the live target combines the measured PV surplus with only the grid-charge component selected by the optimizer. If PV falls, that economic grid component continues; lost PV is not blindly replaced with uneconomic grid energy.
 
+Night-to-morning dispatch is evaluated automatically rather than enabled by a clock schedule. Morning self-consumption compares the taxed retail import avoided against night charging cost, efficiency loss, modeled battery wear, profit margin, and action penalties. Export arbitrage compares the same night import cost against the lower export tariff, which normally excludes import energy tax; it therefore needs a substantially larger wholesale spread. Deterministic Dutch-tariff simulations verify that a `0.01 EUR/kWh` night wholesale price followed by `0.16 EUR/kWh` in the morning charges for a `3 kW` household load, but does not charge solely to export. With the same night price, a `0.32 EUR/kWh` morning export price does clear the modeled costs and produces an export cycle.
+
+The default tariff model uses the official 2026 first-band electricity tax of `0.09161 EUR/kWh` excluding VAT and applies `21%` VAT to imported energy. The fixed annual tax reduction is excluded because battery dispatch cannot change it. Confirm supplier-specific import markup, export deduction, and any contractual battery-export restrictions in the integration options.
+
 Charging headroom is calculated continuously. A configured live grid meter is preferred and the internal time-weighted 15-minute average guards against a transient low reading; the current battery charge command is accounted for so repeated updates do not progressively reduce the same target. Household load is used only when the grid meter is unavailable.
 
 Because the SMA PV inverter and Pylontech battery inverter are separate AC systems, H3X self-consumption mode cannot infer SMA surplus. For a `solar_storage` slot the controller therefore issues an explicit H3X charge command capped by live SMA power minus live home load and a safety margin. If measured surplus falls below minimum active power, a purely solar charge idles; an independently economic grid-charge component continues. Solcast affects future planning; the live SMA and load readings govern the current surplus-following component.
@@ -272,4 +276,5 @@ uv --cache-dir .uv-cache run --python 3.13 python tools/validate_periodic_full_c
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_control_entities.py
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_solar_self_consumption.py
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_predictive_dispatch.py
+uv --cache-dir .uv-cache run --python 3.13 --with pyyaml==6.0.2 python tools/validate_predictive_dashboard.py
 ```

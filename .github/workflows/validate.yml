@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Install dashboard validator dependency
+        run: python -m pip install PyYAML==6.0.2
       - name: Compile Python files
         run: python -m compileall custom_components tools
       - name: Validate HACS structure
