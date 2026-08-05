@@ -31,6 +31,14 @@ def _state_is_numeric(state: object | None) -> bool:
 
 def autodetect_shelly_total_active_power(hass: HomeAssistant) -> str:
     """Return an unambiguous Shelly total active-power sensor entity ID."""
+    candidates = shelly_total_active_power_candidates(hass)
+    return candidates[0] if len(candidates) == 1 else ""
+
+
+def shelly_total_active_power_candidates(
+    hass: HomeAssistant,
+) -> tuple[str, ...]:
+    """Return the best Shelly total active-power sensor candidates."""
     registry = er.async_get(hass)
     strong_candidates: set[str] = set()
     named_candidates: set[str] = set()
@@ -70,7 +78,7 @@ def autodetect_shelly_total_active_power(hass: HomeAssistant) -> str:
             named_candidates.add(state.entity_id)
 
     candidates = strong_candidates or named_candidates
-    return next(iter(candidates)) if len(candidates) == 1 else ""
+    return tuple(sorted(candidates))
 
 
 def autodetect_sma_pv_power(hass: HomeAssistant) -> str:

@@ -131,7 +131,7 @@ from .meter import (
 class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
-    VERSION = 5
+    VERSION = 6
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -266,7 +266,9 @@ def _schema(
             vol.Optional(
                 CONF_GRID_IMPORT_POWER_ENTITY,
                 default=data[CONF_GRID_IMPORT_POWER_ENTITY],
-            ): str,
+            ): EntitySelector(
+                EntitySelectorConfig(domain="sensor", device_class="power")
+            ),
             vol.Optional(
                 CONF_SOLAR_POWER_ENTITY, default=data[CONF_SOLAR_POWER_ENTITY]
             ): str,

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
@@ -14,7 +17,9 @@ from .const import (
     CONF_SHELLY_PHASE_C_POWER_ENTITY,
     CONF_SHELLY_TOTAL_POWER_ENTITY,
     CONF_SOLAR_POWER_ENTITY,
+    DASHBOARD_ENTITY_OBJECT_IDS,
     DEFAULT_RESOLUTION,
+    DOMAIN,
     PLATFORMS,
     RESOLUTIONS,
 )
@@ -25,7 +30,8 @@ from .meter import (
     entity_has_numeric_state,
 )
 
-CONFIG_ENTRY_VERSION = 5
+CONFIG_ENTRY_VERSION = 6
+LOGGER = logging.getLogger(__name__)
 
 
 async def async_migrate_entry(
@@ -114,6 +120,7 @@ async def async_migrate_entry(
             CONF_SOLAR_POWER_ENTITY,
             detected_solar,
         )
+    _migrate_dashboard_entity_ids(hass, entry)
     hass.config_entries.async_update_entry(
         entry,
         data=data,
@@ -121,6 +128,38 @@ async def async_migrate_entry(
         version=CONFIG_ENTRY_VERSION,
     )
     return True
+
+
+def _migrate_dashboard_entity_ids(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Give dashboard-facing entities stable IDs independent of translations."""
+    registry = er.async_get(hass)
+    for contract_key, object_id in DASHBOARD_ENTITY_OBJECT_IDS.items():
+        platform, key = contract_key.split(".", 1)
+        unique_id = f"{entry.entry_id}_{key}"
+        current_entity_id = registry.async_get_entity_id(
+            platform,
+            DOMAIN,
+            unique_id,
+        )
+        target_entity_id = f"{platform}.{object_id}"
+        if not current_entity_id or current_entity_id == target_entity_id:
+            continue
+        target = registry.async_get(target_entity_id)
+        if target is not None:
+            LOGGER.warning(
+                "Cannot migrate %s to stable dashboard entity ID %s because "
+                "that ID is already registered",
+                current_entity_id,
+                target_entity_id,
+            )
+            continue
+        registry.async_update_entity(
+            current_entity_id,
+            new_entity_id=target_entity_id,
+        )
 
 
 def _replace_setting(

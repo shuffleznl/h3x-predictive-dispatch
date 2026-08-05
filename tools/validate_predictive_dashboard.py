@@ -49,6 +49,19 @@ def _expected_predictive_entities() -> set[str]:
     """Derive default entity IDs from descriptions and English translations."""
     strings = json.loads((INTEGRATION / "strings.json").read_text(encoding="utf-8"))
     translations = strings["entity"]
+    const_tree = ast.parse((INTEGRATION / "const.py").read_text(encoding="utf-8"))
+    stable_object_ids: dict[str, str] = {}
+    for node in const_tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name)
+            and target.id == "DASHBOARD_ENTITY_OBJECT_IDS"
+            for target in node.targets
+        ):
+            continue
+        stable_object_ids = ast.literal_eval(node.value)
+        break
     expected: set[str] = set()
     for platform in ("sensor", "select", "number", "switch"):
         tree = ast.parse(
@@ -61,10 +74,13 @@ def _expected_predictive_entities() -> set[str]:
             fallback_name = _literal_keyword(node, "name")
             if translation_key is None or fallback_name is None:
                 continue
-            translated = translations.get(platform, {}).get(
-                translation_key, {}
-            ).get("name", fallback_name)
-            object_id = _slugify(f"{DEVICE_NAME} {translated}")
+            contract_key = f"{platform}.{_literal_keyword(node, 'key')}"
+            object_id = stable_object_ids.get(contract_key)
+            if object_id is None:
+                translated = translations.get(platform, {}).get(
+                    translation_key, {}
+                ).get("name", fallback_name)
+                object_id = _slugify(f"{DEVICE_NAME} {translated}")
             expected.add(f"{platform}.{object_id}")
     return expected
 
@@ -121,7 +137,9 @@ def main() -> None:
         "sensor.pylontech_h3x_predictive_dispatch_grid_import_trend",
         "sensor.pylontech_h3x_predictive_dispatch_grid_net_power",
         "sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom",
-        "sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status",
+        "sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status",
+        "sensor.pylontech_h3x_predictive_dispatch_forecast_load_power",
+        "sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power",
         "sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power",
         "sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power",
         "number.pylontech_h3x_predictive_dispatch_grid_import_limit",
@@ -132,7 +150,7 @@ def main() -> None:
         "Solar forecast, next interval",
         "Forecast load over full horizon",
         "Forecast solar over full horizon",
-        "Active or next forced charge",
+        "Active or next charge",
         "Price assumptions",
     )
     for token in required:
@@ -181,6 +199,15 @@ def main() -> None:
     )[1].split("- type: history-graph", 1)[0]
     if "forecast_load_power" in measured_history or "forecast_solar_power" in measured_history:
         raise AssertionError("rolling forecast snapshots must not be charted as history")
+
+    planned_actions = source.split("heading: Planned actions", 1)[1].split(
+        "entity: sensor.pylontech_h3x_predictive_dispatch_planned_charge_energy",
+        1,
+    )[0]
+    if "type: attribute" in planned_actions:
+        raise AssertionError(
+            "planned action rows must use their own entities for correct more-info navigation"
+        )
 
 
 if __name__ == "__main__":

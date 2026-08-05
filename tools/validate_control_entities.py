@@ -164,8 +164,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.6"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.6")
+    if '"version": "0.2.7"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.7")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -174,10 +174,14 @@ def main() -> None:
         raise AssertionError("Nord Pool price fetch must fall back to hourly prices")
     if "{CONF_NORDPOOL_CONFIG_ENTRY: entry.entry_id}" in config_flow_source:
         raise AssertionError("setup defaults must not persist a volatile Nord Pool entry id")
-    if "VERSION = 5" not in config_flow_source:
+    if "VERSION = 6" not in config_flow_source:
         raise AssertionError("config flow version must migrate obsolete sensor settings")
-    if "CONFIG_ENTRY_VERSION = 5" not in init_source:
+    if "CONFIG_ENTRY_VERSION = 6" not in init_source:
         raise AssertionError("config entry version must migrate Shelly grid monitoring")
+    if "_migrate_dashboard_entity_ids(hass, entry)" not in init_source:
+        raise AssertionError("stable dashboard entity IDs must be migrated")
+    if 'self.entity_id = f"sensor.{object_id}"' not in sensor_source:
+        raise AssertionError("new dashboard sensors must request their stable entity IDs")
     if 'DEFAULT_GRID_IMPORT_POWER_ENTITY = ""' not in const_source:
         raise AssertionError("grid monitoring must not default to a retired meter")
     if "_grid_import_measurement" not in coordinator_source:

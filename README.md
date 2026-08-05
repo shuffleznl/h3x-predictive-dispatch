@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.6` and newer package the matching entity-validated native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.7` and newer package the matching entity-validated native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -121,9 +121,9 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 - `sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average`
 - `sensor.pylontech_h3x_predictive_dispatch_grid_import_trend`
 - `sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom`
-- `sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status`
-- `sensor.pylontech_h3x_predictive_dispatch_load_forecast_next_interval`
-- `sensor.pylontech_h3x_predictive_dispatch_solar_forecast_next_interval`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power`
 - `sensor.pylontech_h3x_predictive_dispatch_next_charge_slot`
 - `sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot`
 - `sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot`

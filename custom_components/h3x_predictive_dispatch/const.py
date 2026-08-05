@@ -6,6 +6,20 @@ DOMAIN = "h3x_predictive_dispatch"
 NORDPOOL_DOMAIN = "nordpool"
 PLATFORMS = [Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 
+# Lovelace must not depend on translated entity names. These object IDs are a
+# public dashboard contract and are migrated by config-entry version 6.
+DASHBOARD_ENTITY_OBJECT_IDS = {
+    "sensor.forecast_load_power": (
+        "pylontech_h3x_predictive_dispatch_forecast_load_power"
+    ),
+    "sensor.forecast_solar_power": (
+        "pylontech_h3x_predictive_dispatch_forecast_solar_power"
+    ),
+    "sensor.grid_diagnostics_status": (
+        "pylontech_h3x_predictive_dispatch_grid_diagnostics_status"
+    ),
+}
+
 CONF_NORDPOOL_CONFIG_ENTRY = "nordpool_config_entry"
 CONF_AREA = "area"
 CONF_CURRENCY = "currency"

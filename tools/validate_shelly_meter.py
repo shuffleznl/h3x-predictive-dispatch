@@ -98,6 +98,9 @@ def main() -> None:
         module.autodetect_shelly_total_active_power(hass)
         == "sensor.grid_connection"
     )
+    assert module.shelly_total_active_power_candidates(hass) == (
+        "sensor.grid_connection",
+    )
 
     second = FakeState(
         "sensor.garage_grid",
@@ -113,6 +116,10 @@ def main() -> None:
         [renamed, second],
     )
     assert module.autodetect_shelly_total_active_power(ambiguous) == ""
+    assert module.shelly_total_active_power_candidates(ambiguous) == (
+        "sensor.garage_grid",
+        "sensor.grid_connection",
+    )
 
     unrelated = FakeState(
         "sensor.total_active_power",

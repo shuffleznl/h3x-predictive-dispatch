@@ -124,7 +124,12 @@ from .forecast import (
     time_weighted_average,
 )
 from .history import RecorderHistoryLoader
-from .meter import autodetect_shelly_total_active_power, autodetect_sma_pv_power
+from .meter import (
+    autodetect_shelly_total_active_power,
+    autodetect_sma_pv_power,
+    entity_has_numeric_state,
+    shelly_total_active_power_candidates,
+)
 from .optimizer import (
     OptimizerSettings,
     OptimizerSlot,
@@ -197,7 +202,7 @@ class Decision:
     solar_power_w: float | None = None
     forecast_load_power_w: float | None = None
     forecast_solar_power_w: float | None = None
-    economic_grid_charge_power_w: float = 0.0
+    economic_grid_charge_power_w: float | None = None
     live_solar_surplus_power_w: float | None = None
     grid_net_power_w: float | None = None
     grid_import_power_w: float | None = None
@@ -250,9 +255,10 @@ class Decision:
             data["forecast_load_power_w"] = round(self.forecast_load_power_w, 1)
         if self.forecast_solar_power_w is not None:
             data["forecast_solar_power_w"] = round(self.forecast_solar_power_w, 1)
-        data["economic_grid_charge_power_w"] = round(
-            self.economic_grid_charge_power_w, 1
-        )
+        if self.economic_grid_charge_power_w is not None:
+            data["economic_grid_charge_power_w"] = round(
+                self.economic_grid_charge_power_w, 1
+            )
         if self.live_solar_surplus_power_w is not None:
             data["live_solar_surplus_power_w"] = round(
                 self.live_solar_surplus_power_w, 1
@@ -466,6 +472,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         current, _net_power, entity_ids, source = self._grid_import_measurement()
         self._grid_import_entity_ids = entity_ids
         self._grid_import_measurement_source = source
+        await self._async_persist_autodetected_grid_entity(entity_ids, source)
         samples = await self._history_loader.async_load_recent_power_samples(
             entity_ids,
             minutes=15,
@@ -504,9 +511,11 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             0.0,
         )
         if len(ordered) < 2:
-            self._grid_import_trend_w_per_min = 0.0
+            self._grid_import_trend_w_per_min = None
             self._grid_import_trend_status = (
-                "live_only" if current is not None else "history_only_live_unavailable"
+                "warming_up_live_only"
+                if current is not None
+                else "history_only_live_unavailable"
             )
             return
 
@@ -528,6 +537,30 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._grid_import_trend_status = (
             "recorder_history" if current is not None else "history_only_live_unavailable"
+        )
+
+    async def _async_persist_autodetected_grid_entity(
+        self,
+        entity_ids: tuple[str, ...],
+        source: str,
+    ) -> None:
+        """Replace a missing grid selection with the resolved Shelly total."""
+        if source != "shelly_total_autodetected" or len(entity_ids) != 1:
+            return
+        entity_id = entity_ids[0]
+        configured = str(self._option(CONF_GRID_IMPORT_POWER_ENTITY)).strip()
+        if configured == entity_id or entity_has_numeric_state(self.hass, configured):
+            return
+        data = dict(self.entry.data)
+        options = dict(self.entry.options)
+        if CONF_GRID_IMPORT_POWER_ENTITY in options:
+            options[CONF_GRID_IMPORT_POWER_ENTITY] = entity_id
+        else:
+            data[CONF_GRID_IMPORT_POWER_ENTITY] = entity_id
+        self.hass.config_entries.async_update_entry(
+            self.entry,
+            data=data,
+            options=options,
         )
 
     async def _async_refresh_solcast_forecast(self) -> None:
@@ -1002,6 +1035,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ",".join(grid_entity_ids)
                 ),
                 "grid_import_measurement_source": grid_source,
+                **self._grid_measurement_diagnostics(grid_entity_ids),
                 "forecast_power_slot_start": (
                     future_slots[forecast_index].start.isoformat()
                     if forecast_index is not None
@@ -1172,6 +1206,10 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         decision.attributes.setdefault("grid_import_power_entity", grid_entity)
         decision.attributes.setdefault("grid_import_measurement_source", grid_source)
+        for key, value in self._grid_measurement_diagnostics(
+            grid_entity_ids
+        ).items():
+            decision.attributes.setdefault(key, value)
         decision.attributes.setdefault(
             "grid_import_average_source",
             "internal_15_minute_recorder_trend",
@@ -1207,7 +1245,9 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         decision.attributes.setdefault(
             "economic_grid_charge_power_w",
-            round(decision.economic_grid_charge_power_w, 1),
+            round(decision.economic_grid_charge_power_w, 1)
+            if decision.economic_grid_charge_power_w is not None
+            else None,
         )
         decision.attributes.setdefault(
             "live_solar_surplus_power_w",
@@ -1687,15 +1727,6 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
         total_entity = str(self._option(CONF_SHELLY_TOTAL_POWER_ENTITY)).strip()
-        total_power = self._power_state_w(total_entity)
-        if total_power is not None:
-            return (
-                max(total_power, 0.0),
-                total_power,
-                (total_entity,),
-                "shelly_total_fallback",
-            )
-
         autodetected_entity = self._autodetected_shelly_grid_entity()
         autodetected_power = self._power_state_w(autodetected_entity)
         if autodetected_power is not None:
@@ -1704,6 +1735,15 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 autodetected_power,
                 (autodetected_entity,),
                 "shelly_total_autodetected",
+            )
+
+        total_power = self._power_state_w(total_entity)
+        if total_power is not None:
+            return (
+                max(total_power, 0.0),
+                total_power,
+                (total_entity,),
+                "shelly_total_fallback",
             )
 
         phase_entities = tuple(
@@ -1735,6 +1775,40 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _autodetected_shelly_grid_entity(self) -> str:
         """Find a clearly named Shelly total active-power sensor."""
         return autodetect_shelly_total_active_power(self.hass)
+
+    def _grid_measurement_diagnostics(
+        self,
+        entity_ids: tuple[str, ...],
+    ) -> dict[str, Any]:
+        """Return raw meter input details for dashboard troubleshooting."""
+        raw_states: list[str] = []
+        raw_units: list[str] = []
+        for entity_id in entity_ids:
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                raw_states.append("unavailable")
+                raw_units.append("")
+                continue
+            raw_states.append(str(state.state))
+            raw_units.append(
+                str((state.attributes or {}).get("unit_of_measurement") or "")
+            )
+        normalized = [self._power_state_w(entity_id) for entity_id in entity_ids]
+        signed_w = (
+            sum(value for value in normalized if value is not None)
+            if normalized and all(value is not None for value in normalized)
+            else None
+        )
+        return {
+            "grid_import_raw_state": ", ".join(raw_states) or None,
+            "grid_import_raw_unit": ", ".join(raw_units) or None,
+            "grid_import_normalized_signed_power_w": (
+                round(signed_w, 1) if signed_w is not None else None
+            ),
+            "grid_import_autodetected_candidates": list(
+                shelly_total_active_power_candidates(self.hass)
+            ),
+        }
 
     def _solar_power_measurement(self) -> tuple[float | None, str, str]:
         """Resolve configured or auto-detected SMA AC-side PV power."""

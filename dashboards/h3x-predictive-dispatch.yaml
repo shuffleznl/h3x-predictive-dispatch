@@ -52,66 +52,38 @@ views:
           - entity: number.pylontech_h3x_predictive_dispatch_minimum_action_duration
             name: Minimum action duration
 
-      - type: entities
-        title: Planned actions
-        show_header_toggle: false
-        entities:
-          - entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            name: Active or next forced charge
-          - type: attribute
+      - type: heading
+        heading: Current dispatch components
+        icon: mdi:transmission-tower-import
+
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power
+            name: Grid charge in active interval (0 = none)
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power
+            name: Measured solar surplus now
+
+      - type: heading
+        heading: Planned actions
+        icon: mdi:calendar-clock
+
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+          - type: tile
             entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: end
-            name: Charge ends
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: target_power_w
-            name: Live/planned charge target
-            suffix: W
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: energy_kwh
-            name: Charge energy
-            suffix: kWh
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: grid_charge_kwh
-            name: Planned grid-charge energy
-            suffix: kWh
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: solar_charge_kwh
-            name: Planned solar-charge energy
-            suffix: kWh
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            attribute: intent
-            name: Charge source decision
-          - entity: sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power
-            name: Current economic grid-charge component
-          - entity: sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power
-            name: Current measured solar surplus
-          - entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
+            name: Active or next charge
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
             name: Active or next discharge
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
-            attribute: end
-            name: Discharge ends
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
-            attribute: target_power_w
-            name: Discharge power
-            suffix: W
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
-            attribute: energy_kwh
-            name: Discharge energy
-            suffix: kWh
-          - entity: sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot
-            name: Periodic full-charge schedule
-          - type: attribute
+          - type: tile
             entity: sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot
-            attribute: next_due_at
-            name: Full charge due
+            name: Periodic full charge
 
       - type: grid
         columns: 3
@@ -200,10 +172,10 @@ views:
             entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
             name: Measured SMA PV now
           - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_load_forecast_next_interval
+            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_power
             name: Load forecast, next interval
           - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_solar_forecast_next_interval
+            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power
             name: Solar forecast, next interval
 
       - type: grid
@@ -263,15 +235,32 @@ views:
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
             name: Available battery charge headroom
           - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
             attribute: measurement_source
             name: Active Shelly measurement source
-          - entity: sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
             name: Recorder trend status
           - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_shelly_grid_diagnostics_status
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
             attribute: entity
             name: Selected Shelly entity
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: raw_state
+            name: Raw Shelly state
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: raw_unit
+            name: Raw Shelly unit
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: samples
+            name: Recorder samples in 15-minute window
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: span_minutes
+            name: Recorder sample span
+            suffix: min
           - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit
             name: Grid import limit
           - entity: number.pylontech_h3x_predictive_dispatch_grid_export_limit

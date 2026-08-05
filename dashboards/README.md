@@ -24,7 +24,7 @@ It shows:
 
 ## Install The YAML Dashboard
 
-Predictive Dispatch `v0.2.6` and newer package the dashboard inside the
+Predictive Dispatch `v0.2.7` and newer package the dashboard inside the
 HACS-managed integration directory. Point Home Assistant directly at that copy
 so future HACS upgrades refresh the dashboard automatically:
 
@@ -57,7 +57,7 @@ Planned values can change when Nord Pool publishes new prices, the battery SOC c
 
 ## PV And Load Display
 
-The dashboard requires `h3x_predictive_dispatch` `0.2.6` or newer. If
+The dashboard requires `h3x_predictive_dispatch` `0.2.7` or newer. If
 historical data has not accumulated yet, the optimizer uses its live-load
 fallback and forecast-quality cards remain unavailable until Recorder has
 enough samples.
@@ -74,7 +74,9 @@ device name by default, for example
 `sensor.pylontech_h3x_predictive_dispatch_decision` and
 `sensor.pylontech_h3x_predictive_dispatch_price_plan`.
 
-If Home Assistant adds suffixes such as `_2`, edit the dashboard YAML and replace the entity IDs.
+Version 0.2.7 migrates the dashboard-facing forecast and Shelly diagnostic
+entities to stable IDs. A conflicting entity already using one of those IDs is
+reported in the Home Assistant log instead of silently adding a suffix.
 
 Dashboard measurements use dedicated entities so their More Info dialogs open the selected measurement instead of the general decision sensor. Restart Home Assistant after an integration upgrade so newly added entities are registered before refreshing the dashboard.
 

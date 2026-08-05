@@ -20,6 +20,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_CURRENCY,
+    DASHBOARD_ENTITY_OBJECT_IDS,
     DEFAULT_CURRENCY,
     DOMAIN,
     NORDPOOL_CONF_CURRENCY,
@@ -178,7 +179,7 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "forecast_load_power_w": data.get("forecast_load_power_w"),
             "forecast_solar_power_w": data.get("forecast_solar_power_w"),
             "economic_grid_charge_power_w": data.get(
-                "economic_grid_charge_power_w", 0.0
+                "economic_grid_charge_power_w"
             ),
             "live_solar_surplus_power_w": data.get(
                 "live_solar_surplus_power_w"
@@ -367,6 +368,20 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transmission-tower-import",
         value_fn=lambda data: data.get("economic_grid_charge_power_w"),
+        extra_fn=lambda data: {
+            "action": data.get("action"),
+            "reason": data.get("reason"),
+            "interval_start": data.get("next_slot_start"),
+            "meaning": (
+                "No economic grid charging selected for the active interval"
+                if data.get("economic_grid_charge_power_w") == 0
+                else (
+                    "Optimizer result is not currently available"
+                    if data.get("economic_grid_charge_power_w") is None
+                    else "Economic grid-charging component of the active target"
+                )
+            ),
+        },
     ),
     H3XPredictiveDispatchSensorDescription(
         key="live_solar_surplus_power",
@@ -442,6 +457,14 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
             "samples": _attribute(data, "grid_import_trend_samples"),
             "span_minutes": _attribute(data, "grid_import_trend_span_minutes"),
             "import_limit_w": _attribute(data, "grid_import_limit_w"),
+            "raw_state": _attribute(data, "grid_import_raw_state"),
+            "raw_unit": _attribute(data, "grid_import_raw_unit"),
+            "normalized_signed_power_w": _attribute(
+                data, "grid_import_normalized_signed_power_w"
+            ),
+            "autodetected_candidates": _attribute(
+                data, "grid_import_autodetected_candidates"
+            ),
         },
     ),
     H3XPredictiveDispatchSensorDescription(
@@ -727,6 +750,9 @@ class H3XPredictiveDispatchSensor(CoordinatorEntity[H3XPredictiveDispatchCoordin
         self.entity_description = description
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        contract_key = f"sensor.{description.key}"
+        if object_id := DASHBOARD_ENTITY_OBJECT_IDS.get(contract_key):
+            self.entity_id = f"sensor.{object_id}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "Pylontech H3X Predictive Dispatch",
