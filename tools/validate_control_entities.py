@@ -166,8 +166,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.8"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.8")
+    if '"version": "0.2.9"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.9")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -176,9 +176,9 @@ def main() -> None:
         raise AssertionError("Nord Pool price fetch must fall back to hourly prices")
     if "{CONF_NORDPOOL_CONFIG_ENTRY: entry.entry_id}" in config_flow_source:
         raise AssertionError("setup defaults must not persist a volatile Nord Pool entry id")
-    if "VERSION = 6" not in config_flow_source:
+    if "VERSION = 7" not in config_flow_source:
         raise AssertionError("config flow version must migrate obsolete sensor settings")
-    if "CONFIG_ENTRY_VERSION = 6" not in init_source:
+    if "CONFIG_ENTRY_VERSION = 7" not in init_source:
         raise AssertionError("config entry version must migrate Shelly grid monitoring")
     if "_migrate_dashboard_entity_ids(hass, entry)" not in init_source:
         raise AssertionError("stable dashboard entity IDs must be migrated")
@@ -188,6 +188,12 @@ def main() -> None:
         raise AssertionError("grid monitoring must not default to a retired meter")
     if "_grid_import_measurement" not in coordinator_source:
         raise AssertionError("Shelly grid source resolver is missing")
+    if "self._grid_connection_limit_w()" not in coordinator_source:
+        raise AssertionError("selected grid rating must constrain dispatch")
+    if "limits = [economic_limit, self._battery_circuit_limit_w()]" not in coordinator_source:
+        raise AssertionError("battery circuit rating must cap charge and discharge")
+    if "infer_grid_connection_rating" not in init_source:
+        raise AssertionError("legacy watt limits must migrate to a rating selection")
     if "autodetect_shelly_total_active_power" not in coordinator_source:
         raise AssertionError("entity-registry Shelly discovery is missing")
     if "autodetect_sma_pv_power" not in coordinator_source:
@@ -240,6 +246,9 @@ def main() -> None:
         raise AssertionError("PV orientation select is missing")
     if 'key="solar_forecast_source"' not in read(INTEGRATION / "select.py"):
         raise AssertionError("solar forecast source select is missing")
+    for token in ('key="grid_connection_rating"', 'key="battery_circuit_rating"'):
+        if token not in read(INTEGRATION / "select.py"):
+            raise AssertionError(f"electrical rating select is missing: {token}")
     number_source = read(INTEGRATION / "number.py")
     for token in (
         "battery_module_count",
@@ -253,6 +262,7 @@ def main() -> None:
         "solcast_update_interval",
         "grid_import_limit",
         "grid_export_limit",
+        "battery_circuit_limit",
     ):
         if token not in number_source:
             raise AssertionError(f"{token} number control is missing")
@@ -278,6 +288,8 @@ def main() -> None:
         'key="grid_import_trend"',
         'key="grid_charge_headroom"',
         'key="grid_diagnostics_status"',
+        'key="grid_connection_capacity"',
+        'key="battery_circuit_capacity"',
         'key="ev_charger_power"',
         'key="battery_supported_load_power"',
         'key="ev_discharge_status"',

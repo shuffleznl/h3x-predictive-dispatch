@@ -283,10 +283,20 @@ views:
             attribute: span_minutes
             name: Recorder sample span
             suffix: min
+          - entity: select.pylontech_h3x_predictive_dispatch_grid_connection_rating
+            name: Main grid connection rating
+          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_connection_capacity
+            name: Effective grid connection capacity
           - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit
-            name: Grid import limit
+            name: Custom connection limit (custom selection only)
           - entity: number.pylontech_h3x_predictive_dispatch_grid_export_limit
-            name: Grid export limit
+            name: Optional lower export cap (0 uses connection rating)
+          - entity: select.pylontech_h3x_predictive_dispatch_battery_circuit_rating
+            name: Dedicated battery circuit rating
+          - entity: sensor.pylontech_h3x_predictive_dispatch_battery_circuit_capacity
+            name: Effective battery circuit capacity
+          - entity: number.pylontech_h3x_predictive_dispatch_battery_circuit_limit
+            name: Custom battery circuit limit (custom selection only)
 
       - type: history-graph
         title: Shelly grid import and charge headroom

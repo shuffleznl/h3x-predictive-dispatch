@@ -24,7 +24,7 @@ It shows:
 
 ## Install The YAML Dashboard
 
-Predictive Dispatch `v0.2.8` and newer package the dashboard inside the
+Predictive Dispatch `v0.2.9` and newer package the dashboard inside the
 HACS-managed integration directory. Point Home Assistant directly at that copy
 so future HACS upgrades refresh the dashboard automatically:
 
@@ -57,7 +57,7 @@ Planned values can change when Nord Pool publishes new prices, the battery SOC c
 
 ## PV And Load Display
 
-The dashboard requires `h3x_predictive_dispatch` `0.2.8` or newer. If
+The dashboard requires `h3x_predictive_dispatch` `0.2.9` or newer. If
 historical data has not accumulated yet, the optimizer uses its live-load
 fallback and forecast-quality cards remain unavailable until Recorder has
 enough samples.

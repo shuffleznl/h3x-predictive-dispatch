@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_ACTION_START_COST,
+    CONF_BATTERY_CIRCUIT_LIMIT_W,
     CONF_BATTERY_MODULE_COUNT,
     CONF_DIRECTION_CHANGE_COST,
     CONF_DISCHARGE_SPREAD_MAX_HOURS,
@@ -37,6 +38,7 @@ from .const import (
     CONF_SUPPLIER_BUY_MARKUP,
     CONF_SUPPLIER_SELL_MARKDOWN,
     CONF_VAT_PERCENT,
+    DASHBOARD_ENTITY_OBJECT_IDS,
     DOMAIN,
     FORCE_H3_MAX_MODULES,
     FORCE_H3_MIN_MODULES,
@@ -88,21 +90,32 @@ NUMBERS: tuple[H3XPredictiveDispatchNumberDescription, ...] = (
     H3XPredictiveDispatchNumberDescription(
         key="grid_import_limit",
         translation_key="grid_import_limit",
-        name="Grid import limit",
+        name="Custom grid connection limit",
         icon="mdi:transmission-tower-import",
         native_min_value=0.0,
-        native_max_value=50000.0,
+        native_max_value=100000.0,
         native_step=100.0,
         native_unit_of_measurement=UnitOfPower.WATT,
         option_key=CONF_GRID_IMPORT_LIMIT_W,
     ),
     H3XPredictiveDispatchNumberDescription(
+        key="battery_circuit_limit",
+        translation_key="battery_circuit_limit",
+        name="Custom battery circuit limit",
+        icon="mdi:fuse",
+        native_min_value=100.0,
+        native_max_value=100000.0,
+        native_step=100.0,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        option_key=CONF_BATTERY_CIRCUIT_LIMIT_W,
+    ),
+    H3XPredictiveDispatchNumberDescription(
         key="grid_export_limit",
         translation_key="grid_export_limit",
-        name="Grid export limit",
+        name="Optional grid export cap",
         icon="mdi:transmission-tower-export",
         native_min_value=0.0,
-        native_max_value=50000.0,
+        native_max_value=100000.0,
         native_step=100.0,
         native_unit_of_measurement=UnitOfPower.WATT,
         option_key=CONF_GRID_EXPORT_LIMIT_W,
@@ -340,6 +353,9 @@ class H3XPredictiveDispatchNumber(CoordinatorEntity[H3XPredictiveDispatchCoordin
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        contract_key = f"number.{description.key}"
+        if object_id := DASHBOARD_ENTITY_OBJECT_IDS.get(contract_key):
+            self.entity_id = f"number.{object_id}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "Pylontech H3X Predictive Dispatch",

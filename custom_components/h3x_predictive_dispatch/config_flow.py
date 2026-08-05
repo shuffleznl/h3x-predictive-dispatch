@@ -21,6 +21,8 @@ from .const import (
     CONF_ACTION_START_COST,
     CONF_AREA,
     CONF_BATTERY_CAPACITY_KWH,
+    CONF_BATTERY_CIRCUIT_LIMIT_W,
+    CONF_BATTERY_CIRCUIT_RATING,
     CONF_BATTERY_MODULE_COUNT,
     CONF_BATTERY_MODULE_COUNT_ENTITY,
     CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
@@ -47,6 +49,7 @@ from .const import (
     CONF_EV_FORECAST_MODE,
     CONF_EV_POWER_ENTITY,
     CONF_FORECAST_RISK_PERCENTILE,
+    CONF_GRID_CONNECTION_RATING,
     CONF_GRID_EXPORT_LIMIT_W,
     CONF_GRID_IMPORT_LIMIT_W,
     CONF_GRID_IMPORT_POWER_ENTITY,
@@ -122,6 +125,7 @@ from .const import (
     STRATEGY_PROFILES,
     TERMINAL_SOC_MODES,
 )
+from .electrical import BATTERY_CIRCUIT_RATINGS, GRID_CONNECTION_RATINGS
 from .meter import (
     autodetect_shelly_total_active_power,
     autodetect_sma_pv_power,
@@ -132,7 +136,7 @@ from .meter import (
 class H3XPredictiveDispatchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
-    VERSION = 6
+    VERSION = 7
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -453,11 +457,27 @@ def _schema(
                 CONF_MIN_ACTIVE_POWER_W, default=data[CONF_MIN_ACTIVE_POWER_W]
             ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=50000.0)),
             vol.Optional(
+                CONF_GRID_CONNECTION_RATING,
+                default=data[CONF_GRID_CONNECTION_RATING],
+            ): SelectSelector(
+                SelectSelectorConfig(options=list(GRID_CONNECTION_RATINGS))
+            ),
+            vol.Optional(
                 CONF_GRID_IMPORT_LIMIT_W, default=data[CONF_GRID_IMPORT_LIMIT_W]
             ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100000.0)),
             vol.Optional(
                 CONF_GRID_EXPORT_LIMIT_W, default=data[CONF_GRID_EXPORT_LIMIT_W]
             ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100000.0)),
+            vol.Optional(
+                CONF_BATTERY_CIRCUIT_RATING,
+                default=data[CONF_BATTERY_CIRCUIT_RATING],
+            ): SelectSelector(
+                SelectSelectorConfig(options=list(BATTERY_CIRCUIT_RATINGS))
+            ),
+            vol.Optional(
+                CONF_BATTERY_CIRCUIT_LIMIT_W,
+                default=data[CONF_BATTERY_CIRCUIT_LIMIT_W],
+            ): vol.All(vol.Coerce(float), vol.Range(min=100.0, max=100000.0)),
             vol.Optional(
                 CONF_DISCHARGE_POWER_MODE,
                 default=data[CONF_DISCHARGE_POWER_MODE],

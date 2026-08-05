@@ -103,6 +103,10 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "target_power_before_grid_limit_w",
             "grid_import_limit_w",
             "grid_export_limit_w",
+            "grid_connection_rating",
+            "custom_grid_connection_limit_w",
+            "battery_circuit_rating",
+            "battery_circuit_limit_w",
             "load_power_entity",
             "home_load_power_source",
             "shelly_total_power_entity",
@@ -523,6 +527,33 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         value_fn=lambda data: _attribute(data, "grid_import_trend_w_per_min"),
     ),
     H3XPredictiveDispatchSensorDescription(
+        key="grid_connection_capacity",
+        translation_key="grid_connection_capacity",
+        name="Grid connection capacity",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        icon="mdi:transmission-tower",
+        value_fn=lambda data: _attribute(data, "grid_import_limit_w"),
+        extra_fn=lambda data: {
+            "rating": _attribute(data, "grid_connection_rating"),
+            "effective_export_limit_w": _attribute(
+                data, "grid_export_limit_w"
+            ),
+        },
+    ),
+    H3XPredictiveDispatchSensorDescription(
+        key="battery_circuit_capacity",
+        translation_key="battery_circuit_capacity",
+        name="Battery circuit capacity",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        icon="mdi:fuse",
+        value_fn=lambda data: _attribute(data, "battery_circuit_limit_w"),
+        extra_fn=lambda data: {
+            "rating": _attribute(data, "battery_circuit_rating"),
+        },
+    ),
+    H3XPredictiveDispatchSensorDescription(
         key="grid_charge_headroom",
         translation_key="grid_charge_headroom",
         name="Grid charge headroom",
@@ -547,6 +578,16 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
             "samples": _attribute(data, "grid_import_trend_samples"),
             "span_minutes": _attribute(data, "grid_import_trend_span_minutes"),
             "import_limit_w": _attribute(data, "grid_import_limit_w"),
+            "connection_rating": _attribute(
+                data, "grid_connection_rating"
+            ),
+            "export_limit_w": _attribute(data, "grid_export_limit_w"),
+            "battery_circuit_rating": _attribute(
+                data, "battery_circuit_rating"
+            ),
+            "battery_circuit_limit_w": _attribute(
+                data, "battery_circuit_limit_w"
+            ),
             "raw_state": _attribute(data, "grid_import_raw_state"),
             "raw_unit": _attribute(data, "grid_import_raw_unit"),
             "normalized_signed_power_w": _attribute(

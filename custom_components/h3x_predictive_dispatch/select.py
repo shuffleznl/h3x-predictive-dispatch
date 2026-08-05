@@ -13,13 +13,16 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_BATTERY_CIRCUIT_RATING,
     CONF_DISCHARGE_POWER_MODE,
     CONF_EV_FORECAST_MODE,
+    CONF_GRID_CONNECTION_RATING,
     CONF_LOAD_FORECAST_MODE,
     CONF_PV_ORIENTATION,
     CONF_SOLAR_FORECAST_SOURCE,
     CONF_STRATEGY_PROFILE,
     CONF_TERMINAL_SOC_MODE,
+    DASHBOARD_ENTITY_OBJECT_IDS,
     DISCHARGE_POWER_MODES,
     DOMAIN,
     EV_FORECAST_MODES,
@@ -30,6 +33,11 @@ from .const import (
     TERMINAL_SOC_MODES,
 )
 from .coordinator import H3XPredictiveDispatchCoordinator
+from .electrical import (
+    BATTERY_CIRCUIT_RATINGS,
+    GRID_CONNECTION_RATINGS,
+    rating_power_w,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -41,6 +49,22 @@ class H3XPredictiveDispatchSelectDescription(SelectEntityDescription):
 
 
 SELECTS: tuple[H3XPredictiveDispatchSelectDescription, ...] = (
+    H3XPredictiveDispatchSelectDescription(
+        key="grid_connection_rating",
+        translation_key="grid_connection_rating",
+        name="Grid connection rating",
+        icon="mdi:transmission-tower",
+        option_key=CONF_GRID_CONNECTION_RATING,
+        options=GRID_CONNECTION_RATINGS,
+    ),
+    H3XPredictiveDispatchSelectDescription(
+        key="battery_circuit_rating",
+        translation_key="battery_circuit_rating",
+        name="Battery circuit rating",
+        icon="mdi:fuse",
+        option_key=CONF_BATTERY_CIRCUIT_RATING,
+        options=BATTERY_CIRCUIT_RATINGS,
+    ),
     H3XPredictiveDispatchSelectDescription(
         key="load_forecast_mode",
         translation_key="load_forecast_mode",
@@ -131,6 +155,9 @@ class H3XPredictiveDispatchSelect(CoordinatorEntity[H3XPredictiveDispatchCoordin
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_options = list(description.options)
+        contract_key = f"select.{description.key}"
+        if object_id := DASHBOARD_ENTITY_OBJECT_IDS.get(contract_key):
+            self.entity_id = f"select.{object_id}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "Pylontech H3X Predictive Dispatch",
@@ -188,5 +215,17 @@ class H3XPredictiveDispatchSelect(CoordinatorEntity[H3XPredictiveDispatchCoordin
                 "auto": "use Solcast when configured, otherwise use the local panel model",
                 "solcast": "use Solcast and retain the last valid cache during API outages",
                 "panel_model": "use the local orientation and daylight model without cloud forecasts",
+            }
+        if self.entity_description.option_key in {
+            CONF_GRID_CONNECTION_RATING,
+            CONF_BATTERY_CIRCUIT_RATING,
+        }:
+            return {
+                rating: (
+                    f"{rating_power_w(rating) / 1000:.2f} kW nominal at 230 V per phase"
+                    if rating_power_w(rating) is not None
+                    else "use the corresponding custom watt limit"
+                )
+                for rating in self.entity_description.options
             }
         return {}

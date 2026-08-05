@@ -30,6 +30,7 @@ def load_module(name: str):
 
 
 forecast_module = load_module("forecast")
+electrical_module = load_module("electrical")
 solcast_module = load_module("solcast")
 optimizer_module = load_module("optimizer")
 tariff_module = load_module("tariff")
@@ -45,6 +46,9 @@ TariffSettings = tariff_module.TariffSettings
 retail_price = tariff_module.retail_price
 align_solcast_forecasts = solcast_module.align_solcast_forecasts
 parse_solcast_forecasts = solcast_module.parse_solcast_forecasts
+effective_rating_limit_w = electrical_module.effective_rating_limit_w
+infer_grid_connection_rating = electrical_module.infer_grid_connection_rating
+rating_power_w = electrical_module.rating_power_w
 
 
 def slots(prices: list[float], load_w: float = 1200.0) -> list[OptimizerSlot]:
@@ -66,6 +70,18 @@ def slots(prices: list[float], load_w: float = 1200.0) -> list[OptimizerSlot]:
             )
         )
     return result
+
+
+def validate_electrical_ratings() -> None:
+    """Validate nominal EU connection and dedicated-circuit limits."""
+    assert rating_power_w("3x25 A") == 17250.0
+    assert rating_power_w("3x40 A") == 27600.0
+    assert rating_power_w("3x20 A") == 13800.0
+    assert rating_power_w("1x40 A") == 9200.0
+    assert effective_rating_limit_w("3x20 A", 9999.0) == 13800.0
+    assert effective_rating_limit_w("custom", 16400.0) == 16400.0
+    assert infer_grid_connection_rating(17500.0) == "3x25 A"
+    assert infer_grid_connection_rating(19100.0) == "custom"
 
 
 def retail_slots(
@@ -369,6 +385,7 @@ def _windows(schedule: list[object], action: str) -> list[int]:
 
 
 def main() -> None:
+    validate_electrical_ratings()
     validate_tariff()
     validate_flat_prices_do_not_cycle()
     validate_two_peak_schedule()

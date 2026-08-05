@@ -24,6 +24,8 @@ from .const import (
     CONF_ACTION_START_COST,
     CONF_AREA,
     CONF_BATTERY_CAPACITY_KWH,
+    CONF_BATTERY_CIRCUIT_LIMIT_W,
+    CONF_BATTERY_CIRCUIT_RATING,
     CONF_BATTERY_MODULE_COUNT,
     CONF_BATTERY_MODULE_COUNT_ENTITY,
     CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
@@ -50,6 +52,7 @@ from .const import (
     CONF_EV_FORECAST_MODE,
     CONF_EV_POWER_ENTITY,
     CONF_FORECAST_RISK_PERCENTILE,
+    CONF_GRID_CONNECTION_RATING,
     CONF_GRID_EXPORT_LIMIT_W,
     CONF_GRID_IMPORT_LIMIT_W,
     CONF_GRID_IMPORT_POWER_ENTITY,
@@ -117,6 +120,7 @@ from .const import (
     RESOLUTIONS,
     STRATEGY_PROFILE_SETTINGS,
 )
+from .electrical import effective_rating_limit_w
 from .forecast import (
     ForecastBand,
     HistoricalLoadForecaster,
@@ -1080,8 +1084,18 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "control_enabled": bool(self._option(CONF_CONTROL_ENABLED)),
                 "strategy_profile": str(self._option(CONF_STRATEGY_PROFILE)),
                 "terminal_soc_mode": str(self._option(CONF_TERMINAL_SOC_MODE)),
-                "grid_import_limit_w": float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
-                "grid_export_limit_w": float(self._option(CONF_GRID_EXPORT_LIMIT_W)),
+                "grid_connection_rating": str(
+                    self._option(CONF_GRID_CONNECTION_RATING)
+                ),
+                "grid_import_limit_w": self._grid_connection_limit_w(),
+                "grid_export_limit_w": self._grid_export_limit_w(),
+                "custom_grid_connection_limit_w": float(
+                    self._option(CONF_GRID_IMPORT_LIMIT_W)
+                ),
+                "battery_circuit_rating": str(
+                    self._option(CONF_BATTERY_CIRCUIT_RATING)
+                ),
+                "battery_circuit_limit_w": self._battery_circuit_limit_w(),
                 "grid_import_power_entity": str(
                     ",".join(grid_entity_ids)
                 ),
@@ -1313,7 +1327,23 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         decision.attributes.setdefault(
             "grid_import_limit_w",
-            float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
+            self._grid_connection_limit_w(),
+        )
+        decision.attributes.setdefault(
+            "grid_export_limit_w",
+            self._grid_export_limit_w(),
+        )
+        decision.attributes.setdefault(
+            "grid_connection_rating",
+            str(self._option(CONF_GRID_CONNECTION_RATING)),
+        )
+        decision.attributes.setdefault(
+            "battery_circuit_rating",
+            str(self._option(CONF_BATTERY_CIRCUIT_RATING)),
+        )
+        decision.attributes.setdefault(
+            "battery_circuit_limit_w",
+            self._battery_circuit_limit_w(),
         )
         solar_power_w, solar_entity, solar_source = self._solar_power_measurement()
         if decision.solar_power_w is None:
@@ -2147,8 +2177,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             max_charge_power_w=charge_limit,
             max_discharge_power_w=discharge_limit,
             min_active_power_w=float(self._option(CONF_MIN_ACTIVE_POWER_W)),
-            grid_import_limit_w=float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
-            grid_export_limit_w=float(self._option(CONF_GRID_EXPORT_LIMIT_W)),
+            grid_import_limit_w=self._grid_connection_limit_w(),
+            grid_export_limit_w=self._grid_export_limit_w(),
             cycle_cost_per_kwh=float(self._option(CONF_CYCLE_COST)),
             min_profit_margin_per_kwh=float(
                 self._option(CONF_MIN_PROFIT_MARGIN)
@@ -2476,9 +2506,10 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         c_rate_limit_w = max(usable_capacity_kwh, 0.0) * float(
             self._option(c_rate_key)
         ) * 1000
-        if c_rate_limit_w <= 0:
-            return economic_limit
-        return min(economic_limit, c_rate_limit_w)
+        limits = [economic_limit, self._battery_circuit_limit_w()]
+        if c_rate_limit_w > 0:
+            limits.append(c_rate_limit_w)
+        return min(limit for limit in limits if limit > 0)
 
     def _temperature_permissions(
         self, bms_temp: float | None
@@ -2493,6 +2524,30 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if bms_temp > max_temp:
             return False, False, f"BMS temperature above guard ({bms_temp:.1f} C)"
         return True, True, None
+
+    def _grid_connection_limit_w(self) -> float:
+        """Return the selected main-connection aggregate power limit."""
+        return effective_rating_limit_w(
+            str(self._option(CONF_GRID_CONNECTION_RATING)),
+            float(self._option(CONF_GRID_IMPORT_LIMIT_W)),
+        )
+
+    def _grid_export_limit_w(self) -> float:
+        """Return the physical connection limit with an optional lower export cap."""
+        connection_limit = self._grid_connection_limit_w()
+        export_cap = max(float(self._option(CONF_GRID_EXPORT_LIMIT_W)), 0.0)
+        if connection_limit <= 0:
+            return export_cap
+        if export_cap <= 0:
+            return connection_limit
+        return min(connection_limit, export_cap)
+
+    def _battery_circuit_limit_w(self) -> float:
+        """Return the selected dedicated H3X circuit power limit."""
+        return effective_rating_limit_w(
+            str(self._option(CONF_BATTERY_CIRCUIT_RATING)),
+            float(self._option(CONF_BATTERY_CIRCUIT_LIMIT_W)),
+        )
 
 
     def _apply_grid_limit(
@@ -2515,7 +2570,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if charge_headroom_w is not None:
                 return min(target_power_w, charge_headroom_w)
         elif action == "discharge":
-            export_limit = float(self._option(CONF_GRID_EXPORT_LIMIT_W))
+            export_limit = self._grid_export_limit_w()
             if export_limit > 0:
                 return min(target_power_w, max(export_limit + load_power, 0.0))
         return target_power_w
@@ -2528,7 +2583,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         grid_import_average_power_w: float | None,
     ) -> float | None:
         """Return allowed charge power from house/grid import readings."""
-        import_limit = float(self._option(CONF_GRID_IMPORT_LIMIT_W))
+        import_limit = self._grid_connection_limit_w()
         if import_limit <= 0:
             return None
 

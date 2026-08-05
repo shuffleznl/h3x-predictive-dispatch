@@ -2,12 +2,17 @@
 
 from homeassistant.const import Platform
 
+from .electrical import (
+    DEFAULT_BATTERY_CIRCUIT_RATING,
+    DEFAULT_GRID_CONNECTION_RATING,
+)
+
 DOMAIN = "h3x_predictive_dispatch"
 NORDPOOL_DOMAIN = "nordpool"
 PLATFORMS = [Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 
 # Lovelace must not depend on translated entity names. These object IDs are a
-# public dashboard contract and are migrated by config-entry version 6.
+# public dashboard contract and are migrated by config-entry version 7.
 DASHBOARD_ENTITY_OBJECT_IDS = {
     "sensor.battery_supported_load_power": (
         "pylontech_h3x_predictive_dispatch_battery_supported_load_power"
@@ -26,6 +31,27 @@ DASHBOARD_ENTITY_OBJECT_IDS = {
     ),
     "sensor.grid_diagnostics_status": (
         "pylontech_h3x_predictive_dispatch_grid_diagnostics_status"
+    ),
+    "sensor.grid_connection_capacity": (
+        "pylontech_h3x_predictive_dispatch_grid_connection_capacity"
+    ),
+    "sensor.battery_circuit_capacity": (
+        "pylontech_h3x_predictive_dispatch_battery_circuit_capacity"
+    ),
+    "select.battery_circuit_rating": (
+        "pylontech_h3x_predictive_dispatch_battery_circuit_rating"
+    ),
+    "select.grid_connection_rating": (
+        "pylontech_h3x_predictive_dispatch_grid_connection_rating"
+    ),
+    "number.grid_import_limit": (
+        "pylontech_h3x_predictive_dispatch_grid_import_limit"
+    ),
+    "number.grid_export_limit": (
+        "pylontech_h3x_predictive_dispatch_grid_export_limit"
+    ),
+    "number.battery_circuit_limit": (
+        "pylontech_h3x_predictive_dispatch_battery_circuit_limit"
     ),
     "switch.ev_discharge_block": (
         "pylontech_h3x_predictive_dispatch_ev_discharge_block"
@@ -104,8 +130,11 @@ CONF_MAX_CHARGE_C_RATE = "max_charge_c_rate"
 CONF_MAX_DISCHARGE_C_RATE = "max_discharge_c_rate"
 CONF_INVERTER_FULL_SCALE_POWER_W = "inverter_full_scale_power_w"
 CONF_MIN_ACTIVE_POWER_W = "min_active_power_w"
+CONF_GRID_CONNECTION_RATING = "grid_connection_rating"
 CONF_GRID_IMPORT_LIMIT_W = "grid_import_limit_w"
 CONF_GRID_EXPORT_LIMIT_W = "grid_export_limit_w"
+CONF_BATTERY_CIRCUIT_RATING = "battery_circuit_rating"
+CONF_BATTERY_CIRCUIT_LIMIT_W = "battery_circuit_limit_w"
 CONF_DISCHARGE_POWER_MODE = "discharge_power_mode"
 CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE = "discharge_spread_price_tolerance"
 CONF_DISCHARGE_SPREAD_MAX_HOURS = "discharge_spread_max_hours"
@@ -227,8 +256,11 @@ DEFAULTS = {
     CONF_MAX_DISCHARGE_C_RATE: 0.45,
     CONF_INVERTER_FULL_SCALE_POWER_W: 13800.0,
     CONF_MIN_ACTIVE_POWER_W: 500.0,
-    CONF_GRID_IMPORT_LIMIT_W: 17500.0,
+    CONF_GRID_CONNECTION_RATING: DEFAULT_GRID_CONNECTION_RATING,
+    CONF_GRID_IMPORT_LIMIT_W: 17250.0,
     CONF_GRID_EXPORT_LIMIT_W: 0.0,
+    CONF_BATTERY_CIRCUIT_RATING: DEFAULT_BATTERY_CIRCUIT_RATING,
+    CONF_BATTERY_CIRCUIT_LIMIT_W: 13800.0,
     CONF_DISCHARGE_POWER_MODE: "spread",
     CONF_DISCHARGE_SPREAD_PRICE_TOLERANCE: 10.0,
     CONF_DISCHARGE_SPREAD_MAX_HOURS: 3.0,

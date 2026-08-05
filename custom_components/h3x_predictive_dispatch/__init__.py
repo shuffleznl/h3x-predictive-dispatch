@@ -9,7 +9,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    CONF_BATTERY_CIRCUIT_RATING,
+    CONF_GRID_CONNECTION_RATING,
     CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY,
+    CONF_GRID_IMPORT_LIMIT_W,
     CONF_GRID_IMPORT_POWER_ENTITY,
     CONF_RESOLUTION,
     CONF_SHELLY_PHASE_A_POWER_ENTITY,
@@ -19,18 +22,20 @@ from .const import (
     CONF_SOLAR_POWER_ENTITY,
     DASHBOARD_ENTITY_OBJECT_IDS,
     DEFAULT_RESOLUTION,
+    DEFAULTS,
     DOMAIN,
     PLATFORMS,
     RESOLUTIONS,
 )
 from .coordinator import H3XPredictiveDispatchCoordinator
+from .electrical import infer_grid_connection_rating
 from .meter import (
     autodetect_shelly_total_active_power,
     autodetect_sma_pv_power,
     entity_has_numeric_state,
 )
 
-CONFIG_ENTRY_VERSION = 6
+CONFIG_ENTRY_VERSION = 7
 LOGGER = logging.getLogger(__name__)
 
 
@@ -61,6 +66,32 @@ async def async_migrate_entry(
         options[CONF_RESOLUTION] = resolution
     data.pop(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY, None)
     options.pop(CONF_GRID_IMPORT_AVERAGE_POWER_ENTITY, None)
+
+    if (
+        CONF_GRID_CONNECTION_RATING not in data
+        and CONF_GRID_CONNECTION_RATING not in options
+    ):
+        legacy_limit = options.get(
+            CONF_GRID_IMPORT_LIMIT_W,
+            data.get(
+                CONF_GRID_IMPORT_LIMIT_W,
+                DEFAULTS[CONF_GRID_IMPORT_LIMIT_W],
+            ),
+        )
+        try:
+            legacy_limit_w = float(legacy_limit)
+        except (TypeError, ValueError):
+            legacy_limit_w = float(DEFAULTS[CONF_GRID_IMPORT_LIMIT_W])
+        data[CONF_GRID_CONNECTION_RATING] = infer_grid_connection_rating(
+            legacy_limit_w
+        )
+    if (
+        CONF_BATTERY_CIRCUIT_RATING not in data
+        and CONF_BATTERY_CIRCUIT_RATING not in options
+    ):
+        data[CONF_BATTERY_CIRCUIT_RATING] = DEFAULTS[
+            CONF_BATTERY_CIRCUIT_RATING
+        ]
 
     configured_grid = str(
         options.get(

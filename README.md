@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.8` and newer package the matching entity-validated native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.9` and newer package the matching entity-validated native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -225,7 +225,15 @@ The optimizer supports:
 
 **Forecast risk percentile** controls how much the optimizer prices uncertainty rather than changing the forecast itself. At `50%`, it minimizes the weighted expected cost across low, median, and high net-load scenarios. Values toward `90%` increasingly add the most expensive scenario, which favors retaining energy for unexpectedly high load or low solar production. Import/export feasibility remains conservatively checked against p90 load and p10 solar at every setting.
 
-Default power settings are `11 kW` continuous and `13.8 kW` peak, with peak power only used when the price spread clears the configured extra margin. C-rate caps are applied after those economic limits: for a 6-module pack with `29.17 kWh` usable capacity, `0.5C` is `14.6 kW`, so the inverter peak still limits the final setpoint. The default grid import limit is `17.5 kW`; set it to `0` in options to disable the import guard.
+Default power settings are `11 kW` continuous and `13.8 kW` peak, with peak power only used when the price spread clears the configured extra margin. C-rate and dedicated-circuit caps are applied after those economic limits: for a 6-module pack with `29.17 kWh` usable capacity, `0.5C` is `14.6 kW`, while the default `3x20 A` battery circuit limits the final setpoint to `13.8 kW`.
+
+### Electrical Ratings
+
+**Grid connection rating** is selected from common European single- and three-phase residential services. The default is the modern Dutch standard `3x25 A`, equivalent to `17.25 kW` nominal at `230 V` per phase. This deployment should select `3x40 A`, equivalent to `27.6 kW`. The selected connection rating is the physical aggregate import and export limit; the optional export cap can impose a lower contractual limit, and `0 W` means use the connection rating.
+
+**Battery circuit rating** is independent of the main connection and caps both H3X charge and discharge. This deployment should select `3x20 A`, equivalent to `13.8 kW`. The circuit cap is combined with the inverter, economic and C-rate limits by taking the lowest applicable value. Choose `custom` only for a nonstandard installation, then set the corresponding custom watt control.
+
+Legacy entries are migrated conservatively: an existing `17.5 kW` grid limit becomes `3x25 A`; values not within 5% of a standard rating remain `custom`. The calculation uses nominal aggregate real power at unity power factor: `phases x 230 V x amperes`. Aggregate power cannot detect one overloaded phase in an unbalanced installation, so upstream protective devices and the installer's phase design remain authoritative.
 
 Charging is not intentionally spread across many hours. The rolling optimizer charges at the cheapest economic speed needed to support later household consumption or export, capped by inverter power, the configured charge C-rate, BMS temperature, SOC limits, and the grid import limit. When a slot contains both PV surplus and economically justified grid energy, the live target combines the measured PV surplus with only the grid-charge component selected by the optimizer. If PV falls, that economic grid component continues; lost PV is not blindly replaced with uneconomic grid energy.
 
