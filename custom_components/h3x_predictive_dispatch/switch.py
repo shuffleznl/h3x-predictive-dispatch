@@ -12,9 +12,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING,
     CONF_CONTROL_ENABLED,
     CONF_DUTCH_TARIFF_ENABLED,
     CONF_PERIODIC_FULL_CHARGE_ENABLED,
+    DASHBOARD_ENTITY_OBJECT_IDS,
     DOMAIN,
 )
 from .coordinator import H3XPredictiveDispatchCoordinator
@@ -49,6 +51,13 @@ SWITCHES: tuple[H3XPredictiveDispatchSwitchDescription, ...] = (
         icon="mdi:battery-sync",
         option_key=CONF_PERIODIC_FULL_CHARGE_ENABLED,
     ),
+    H3XPredictiveDispatchSwitchDescription(
+        key="ev_discharge_block",
+        translation_key="ev_discharge_block",
+        name="Block battery discharge while EV charging",
+        icon="mdi:battery-lock",
+        option_key=CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING,
+    ),
 )
 
 
@@ -82,6 +91,9 @@ class H3XPredictiveDispatchSwitch(CoordinatorEntity[H3XPredictiveDispatchCoordin
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        contract_key = f"switch.{description.key}"
+        if object_id := DASHBOARD_ENTITY_OBJECT_IDS.get(contract_key):
+            self.entity_id = f"switch.{object_id}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "Pylontech H3X Predictive Dispatch",

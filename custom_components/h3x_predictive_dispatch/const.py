@@ -9,6 +9,15 @@ PLATFORMS = [Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 # Lovelace must not depend on translated entity names. These object IDs are a
 # public dashboard contract and are migrated by config-entry version 6.
 DASHBOARD_ENTITY_OBJECT_IDS = {
+    "sensor.battery_supported_load_power": (
+        "pylontech_h3x_predictive_dispatch_battery_supported_load_power"
+    ),
+    "sensor.ev_charger_power": (
+        "pylontech_h3x_predictive_dispatch_ev_charger_power"
+    ),
+    "sensor.ev_discharge_status": (
+        "pylontech_h3x_predictive_dispatch_ev_discharge_status"
+    ),
     "sensor.forecast_load_power": (
         "pylontech_h3x_predictive_dispatch_forecast_load_power"
     ),
@@ -17,6 +26,9 @@ DASHBOARD_ENTITY_OBJECT_IDS = {
     ),
     "sensor.grid_diagnostics_status": (
         "pylontech_h3x_predictive_dispatch_grid_diagnostics_status"
+    ),
+    "switch.ev_discharge_block": (
+        "pylontech_h3x_predictive_dispatch_ev_discharge_block"
     ),
 }
 
@@ -31,6 +43,9 @@ CONF_LOAD_HISTORY_DAYS = "load_history_days"
 CONF_EV_FORECAST_MODE = "ev_forecast_mode"
 CONF_EV_POWER_ENTITY = "ev_power_entity"
 CONF_EV_CHARGING_THRESHOLD_W = "ev_charging_threshold_w"
+CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING = (
+    "block_discharge_while_ev_charging"
+)
 
 CONF_EMS_MODE_ENTITY = "ems_mode_entity"
 CONF_POWER_REF_ENTITY = "power_ref_entity"
@@ -156,6 +171,7 @@ DEFAULTS = {
     CONF_EV_FORECAST_MODE: DEFAULT_EV_FORECAST_MODE,
     CONF_EV_POWER_ENTITY: "",
     CONF_EV_CHARGING_THRESHOLD_W: 2800.0,
+    CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING: False,
     CONF_EMS_MODE_ENTITY: DEFAULT_EMS_MODE_ENTITY,
     CONF_POWER_REF_ENTITY: DEFAULT_POWER_REF_ENTITY,
     CONF_SOC_ENTITY: DEFAULT_SOC_ENTITY,

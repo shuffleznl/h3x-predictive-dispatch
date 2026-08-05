@@ -26,6 +26,7 @@ from .const import (
     CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_KWH,
+    CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING,
     CONF_BMS_TEMP_ENTITY,
     CONF_BUY_COST_ADDER,
     CONF_CHARGE_LIMIT_SOC_ENTITY,
@@ -232,11 +233,17 @@ def _schema(
             ): vol.In(EV_FORECAST_MODES),
             vol.Optional(
                 CONF_EV_POWER_ENTITY, default=data[CONF_EV_POWER_ENTITY]
-            ): str,
+            ): EntitySelector(
+                EntitySelectorConfig(domain="sensor", device_class="power")
+            ),
             vol.Optional(
                 CONF_EV_CHARGING_THRESHOLD_W,
                 default=data[CONF_EV_CHARGING_THRESHOLD_W],
             ): vol.All(vol.Coerce(float), vol.Range(min=500.0, max=22000.0)),
+            vol.Optional(
+                CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING,
+                default=data[CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING],
+            ): bool,
             vol.Optional(
                 CONF_EMS_MODE_ENTITY, default=data[CONF_EMS_MODE_ENTITY]
             ): EntitySelector(EntitySelectorConfig(domain="select")),

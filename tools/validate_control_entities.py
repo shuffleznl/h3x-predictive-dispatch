@@ -135,6 +135,8 @@ def main() -> None:
         raise AssertionError("decision reason sensor is missing")
     if 'key="control_enabled"' not in read(INTEGRATION / "switch.py"):
         raise AssertionError("automatic control switch is missing")
+    if 'key="ev_discharge_block"' not in read(INTEGRATION / "switch.py"):
+        raise AssertionError("EV discharge-block switch is missing")
     if "CONF_BATTERY_CAPACITY_KWH: 20.0" in const_source:
         raise AssertionError("old 20 kWh scaffold capacity must not be the default")
     if "FORCE_H3_MODULE_CAPACITY_KWH = 5.12" not in const_source:
@@ -164,8 +166,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.7"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.7")
+    if '"version": "0.2.8"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.8")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -214,6 +216,9 @@ def main() -> None:
         "grid_import_average_power",
         "grid_import_trend",
         "grid_charge_headroom",
+        "ev_charger_power",
+        "battery_supported_load_power",
+        "ev_discharge_status",
     ):
         if f'key="{sensor_key}"' not in sensor_source:
             raise AssertionError(f"dashboard sensor is missing: {sensor_key}")
@@ -273,6 +278,9 @@ def main() -> None:
         'key="grid_import_trend"',
         'key="grid_charge_headroom"',
         'key="grid_diagnostics_status"',
+        'key="ev_charger_power"',
+        'key="battery_supported_load_power"',
+        'key="ev_discharge_status"',
     ):
         if token not in sensor_source:
             raise AssertionError(f"{token} sensor is missing")
@@ -284,6 +292,17 @@ def main() -> None:
     ):
         if token not in coordinator_source:
             raise AssertionError(f"{token} coordinator helper is missing")
+
+    for token in (
+        "CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING",
+        "ev_discharge_block_active",
+        "battery_supported_load_power_w",
+        "discharge_allowed=not",
+    ):
+        if token not in coordinator_source and token not in const_source:
+            raise AssertionError(f"EV discharge protection is missing: {token}")
+    if "settings.discharge_allowed and slot.discharge_allowed" not in optimizer_source:
+        raise AssertionError("optimizer must enforce per-slot EV discharge protection")
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ from .const import (
     CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_KWH,
+    CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING,
     CONF_BMS_TEMP_ENTITY,
     CONF_BUY_COST_ADDER,
     CONF_CHARGE_LIMIT_SOC_ENTITY,
@@ -202,6 +203,8 @@ class Decision:
     solar_power_w: float | None = None
     forecast_load_power_w: float | None = None
     forecast_solar_power_w: float | None = None
+    ev_power_w: float | None = None
+    battery_supported_load_power_w: float | None = None
     economic_grid_charge_power_w: float | None = None
     live_solar_surplus_power_w: float | None = None
     grid_net_power_w: float | None = None
@@ -255,6 +258,13 @@ class Decision:
             data["forecast_load_power_w"] = round(self.forecast_load_power_w, 1)
         if self.forecast_solar_power_w is not None:
             data["forecast_solar_power_w"] = round(self.forecast_solar_power_w, 1)
+        if self.ev_power_w is not None:
+            data["ev_power_w"] = round(self.ev_power_w, 1)
+        if self.battery_supported_load_power_w is not None:
+            data["battery_supported_load_power_w"] = round(
+                self.battery_supported_load_power_w,
+                1,
+            )
         if self.economic_grid_charge_power_w is not None:
             data["economic_grid_charge_power_w"] = round(
                 self.economic_grid_charge_power_w, 1
@@ -951,9 +961,44 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         solar_power_w, solar_entity, solar_measurement_source = (
             self._solar_power_measurement()
         )
-        load_forecast = self._forecast_load(optimization_slots, load_power_w)
+        ev_mode = str(self._option(CONF_EV_FORECAST_MODE))
+        ev_threshold_w = float(self._option(CONF_EV_CHARGING_THRESHOLD_W))
+        ev_power_entity = str(self._option(CONF_EV_POWER_ENTITY)).strip()
+        ev_sensor_power_w = self._positive_power_state_w(ev_power_entity)
+        load_forecast = self._forecast_load(
+            optimization_slots,
+            load_power_w,
+            ev_sensor_power_w,
+        )
         self._load_forecast_result = load_forecast
         load_forecast_w = [band.p50_w for band in load_forecast.bands]
+        forecast_ev_power_w = (
+            load_forecast.bands[0].ev_w if load_forecast.bands else 0.0
+        )
+        active_ev_power_w = (
+            ev_sensor_power_w if ev_mode == "sensor" else forecast_ev_power_w
+        )
+        ev_charging_active = (
+            ev_mode != "off"
+            and active_ev_power_w is not None
+            and active_ev_power_w >= ev_threshold_w
+        )
+        ev_discharge_block_enabled = bool(
+            self._option(CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING)
+        )
+        ev_discharge_block_active = (
+            ev_discharge_block_enabled and ev_charging_active
+        )
+        excluded_ev_power_w = (
+            min(max(active_ev_power_w or 0.0, 0.0), max(load_power_w or 0.0, 0.0))
+            if ev_discharge_block_active and load_power_w is not None
+            else 0.0
+        )
+        battery_supported_load_power_w = (
+            max(load_power_w - excluded_ev_power_w, 0.0)
+            if load_power_w is not None
+            else None
+        )
         solar_forecast, solar_forecast_source, solar_forecast_scale = (
             self._solar_forecast_for_slots(optimization_slots, solar_power_w)
         )
@@ -972,6 +1017,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             solar_forecast=solar_forecast,
             current_load_power_w=load_power_w,
             current_solar_power_w=solar_power_w,
+            block_ev_discharge=ev_discharge_block_enabled,
+            ev_threshold_w=ev_threshold_w,
         )
 
         current_slot = future_slots[0]
@@ -986,6 +1033,10 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.next_slot_end = current_slot.end.isoformat()
         decision.load_power_w = load_power_w
         decision.solar_power_w = solar_power_w
+        decision.ev_power_w = ev_sensor_power_w
+        decision.battery_supported_load_power_w = (
+            battery_supported_load_power_w
+        )
         forecast_index = 1 if len(future_slots) > 1 else None
         decision.forecast_load_power_w = (
             load_forecast_w[forecast_index]
@@ -1110,6 +1161,24 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
                 "ev_forecast_mode": str(self._option(CONF_EV_FORECAST_MODE)),
                 "ev_sessions_detected": load_forecast.metrics.ev_sessions,
+                "ev_power_entity": ev_power_entity,
+                "ev_power_sensor_available": ev_sensor_power_w is not None,
+                "ev_power_sensor_w": (
+                    round(ev_sensor_power_w, 1)
+                    if ev_sensor_power_w is not None
+                    else None
+                ),
+                "ev_forecast_power_w": round(forecast_ev_power_w, 1),
+                "ev_charging_threshold_w": ev_threshold_w,
+                "ev_charging_active": ev_charging_active,
+                "ev_discharge_block_enabled": ev_discharge_block_enabled,
+                "ev_discharge_block_active": ev_discharge_block_active,
+                "ev_excluded_load_power_w": round(excluded_ev_power_w, 1),
+                "battery_supported_load_power_w": (
+                    round(battery_supported_load_power_w, 1)
+                    if battery_supported_load_power_w is not None
+                    else None
+                ),
                 "load_forecast": self._serialize_forecast_bands(
                     future_slots, load_forecast.bands
                 ),
@@ -1150,6 +1219,16 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return self._idle_from(decision, temp_reason or "charging not allowed")
         if decision.action == "discharge" and not discharge_allowed:
             return self._idle_from(decision, temp_reason or "discharging not allowed")
+        if decision.action == "discharge" and ev_discharge_block_active:
+            return self._idle_from(
+                decision,
+                f"EV charging at {active_ev_power_w:.0f} W; battery discharge blocked",
+            )
+        if decision.action == "idle" and ev_discharge_block_active:
+            decision.reason = (
+                f"EV charging at {active_ev_power_w:.0f} W; battery discharge "
+                f"blocked; {decision.reason}"
+            )
 
         if decision.action in {"charge", "discharge"}:
             limited_power = self._apply_grid_limit(
@@ -1243,6 +1322,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision.attributes.setdefault(
             "solar_power_measurement_source", solar_source
         )
+        self._attach_ev_diagnostics(decision, load_power_w)
         decision.attributes.setdefault(
             "economic_grid_charge_power_w",
             round(decision.economic_grid_charge_power_w, 1)
@@ -1258,6 +1338,60 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._ensure_capacity_attributes(decision)
         self._set_target_c_rate_attribute(decision)
         self._attach_plan_summaries(decision)
+
+    def _attach_ev_diagnostics(
+        self,
+        decision: Decision,
+        load_power_w: float | None,
+    ) -> None:
+        """Attach live EV policy state, including during failsafe updates."""
+        mode = str(self._option(CONF_EV_FORECAST_MODE))
+        threshold_w = float(self._option(CONF_EV_CHARGING_THRESHOLD_W))
+        entity_id = str(self._option(CONF_EV_POWER_ENTITY)).strip()
+        sensor_power_w = self._positive_power_state_w(entity_id)
+        active_power_w = sensor_power_w if mode == "sensor" else None
+        charging_active = (
+            mode != "off"
+            and active_power_w is not None
+            and active_power_w >= threshold_w
+        )
+        block_enabled = bool(
+            self._option(CONF_BLOCK_DISCHARGE_WHILE_EV_CHARGING)
+        )
+        block_active = block_enabled and charging_active
+        excluded_w = (
+            min(active_power_w or 0.0, max(load_power_w or 0.0, 0.0))
+            if block_active and load_power_w is not None
+            else 0.0
+        )
+        if decision.ev_power_w is None:
+            decision.ev_power_w = sensor_power_w
+        if decision.battery_supported_load_power_w is None:
+            decision.battery_supported_load_power_w = (
+                max(load_power_w - excluded_w, 0.0)
+                if load_power_w is not None
+                else None
+            )
+        defaults = {
+            "ev_forecast_mode": mode,
+            "ev_power_entity": entity_id,
+            "ev_power_sensor_available": sensor_power_w is not None,
+            "ev_power_sensor_w": (
+                round(sensor_power_w, 1) if sensor_power_w is not None else None
+            ),
+            "ev_charging_threshold_w": threshold_w,
+            "ev_charging_active": charging_active,
+            "ev_discharge_block_enabled": block_enabled,
+            "ev_discharge_block_active": block_active,
+            "ev_excluded_load_power_w": round(excluded_w, 1),
+            "battery_supported_load_power_w": (
+                round(decision.battery_supported_load_power_w, 1)
+                if decision.battery_supported_load_power_w is not None
+                else None
+            ),
+        }
+        for key, value in defaults.items():
+            decision.attributes.setdefault(key, value)
 
     def _configured_resolution_minutes(self) -> int:
         """Return a valid persisted Nord Pool resolution."""
@@ -1429,6 +1563,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "solar_charge_kwh": row.get("solar_charge_kwh"),
             "self_consumption_kwh": row.get("self_consumption_kwh"),
             "battery_export_kwh": row.get("battery_export_kwh"),
+            "ev_power_w": row.get("ev_power_w"),
+            "ev_discharge_blocked": row.get("ev_discharge_blocked"),
             "net_grid_with_battery_w": row.get("net_grid_with_battery_w"),
         }
 
@@ -1839,31 +1975,41 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         future_slots: list[PriceSlot],
         current_load_w: float | None,
+        current_ev_power_w: float | None,
     ) -> LoadForecast:
         """Build a historical load forecast with an explicit flat fallback."""
         ev_mode = str(self._option(CONF_EV_FORECAST_MODE))
-        ev_power = self._positive_power_state_w(
-            str(self._option(CONF_EV_POWER_ENTITY)).strip()
-        )
+        ev_threshold_w = float(self._option(CONF_EV_CHARGING_THRESHOLD_W))
         forecaster = HistoricalLoadForecaster(
             self._historical_observations,
             ev_mode=ev_mode,
-            ev_threshold_w=float(self._option(CONF_EV_CHARGING_THRESHOLD_W)),
+            ev_threshold_w=ev_threshold_w,
         )
         forecast = forecaster.forecast(
             future_slots,
             current_load_w=current_load_w,
-            current_ev_w=ev_power,
+            current_ev_w=current_ev_power_w,
         )
         if current_load_w is not None and forecast.bands:
             current = max(current_load_w, 0.0)
+            if ev_mode == "off":
+                active_ev_w = 0.0
+            elif ev_mode == "sensor":
+                measured_ev_w = min(max(current_ev_power_w or 0.0, 0.0), current)
+                active_ev_w = (
+                    measured_ev_w
+                    if measured_ev_w >= ev_threshold_w
+                    else 0.0
+                )
+            else:
+                active_ev_w = forecast.bands[0].ev_w
             forecast.bands[0] = ForecastBand(
                 p10_w=current * 0.9,
                 p50_w=current,
                 p90_w=current * 1.1,
                 samples=max(forecast.bands[0].samples, 1),
                 confidence=0.95,
-                ev_w=forecast.bands[0].ev_w,
+                ev_w=active_ev_w,
             )
         return forecast
 
@@ -1949,12 +2095,19 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         solar_forecast: list[ForecastBand],
         current_load_power_w: float | None,
         current_solar_power_w: float | None,
+        block_ev_discharge: bool,
+        ev_threshold_w: float,
     ) -> Decision:
         """Run the modular forecast-aware model-predictive optimizer."""
         tariff = self._tariff_settings()
         optimizer_slots: list[OptimizerSlot] = []
         for index, slot in enumerate(future_slots):
             price = retail_price(slot.price, tariff)
+            load_band = (
+                load_forecast.bands[index]
+                if index < len(load_forecast.bands)
+                else ForecastBand(0, 0, 0, 0, 0)
+            )
             optimizer_slots.append(
                 OptimizerSlot(
                     start=slot.start,
@@ -1962,15 +2115,15 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     wholesale_price=slot.price,
                     buy_price=price.buy,
                     sell_price=price.sell,
-                    load=(
-                        load_forecast.bands[index]
-                        if index < len(load_forecast.bands)
-                        else ForecastBand(0, 0, 0, 0, 0)
-                    ),
+                    load=load_band,
                     solar=(
                         solar_forecast[index]
                         if index < len(solar_forecast)
                         else ForecastBand(0, 0, 0, 0, 0)
+                    ),
+                    discharge_allowed=not (
+                        block_ev_discharge
+                        and load_band.ev_w >= ev_threshold_w
                     ),
                 )
             )
@@ -2580,7 +2733,10 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         minimum = timedelta(
             minutes=float(self._option(CONF_MIN_ACTION_DURATION_MINUTES))
         )
-        safety_stop = decision.action == "failsafe" or (
+        safety_stop = (
+            previous == "discharge"
+            and bool(decision.attributes.get("ev_discharge_block_active"))
+        ) or decision.action == "failsafe" or (
             decision.action == "idle"
             and any(
                 token in decision.reason.lower()

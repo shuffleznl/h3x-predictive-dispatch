@@ -50,7 +50,7 @@ The Nord Pool config entry is resolved automatically at runtime. If Home Assista
 
 ## Dashboard Updates
 
-Version `0.2.7` and newer package the matching entity-validated native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
+Version `0.2.8` and newer package the matching entity-validated native-card dashboard at `config/custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`. Point a YAML dashboard at that file once so subsequent Predictive Dispatch upgrades installed by HACS also refresh the dashboard source.
 
 The configured Nord Pool resolution is persisted as `15`, `30`, or `60` minutes. The price-resolution sensor reports the active slot duration when prices are available and falls back to the configured resolution during startup or a failsafe update.
 
@@ -97,12 +97,24 @@ Shelly and SMA entity IDs are generated from the device names in Home Assistant,
 | Shelly Pro 3EM per-phase household load | If no total household-load sensor is available, set all phase A/B/C active-power sensors. The controller sums available load phases; grid-limit fallback requires all three phases. |
 | SMA Sunny Boy PV power | Set **SMA Sunny Boy current PV power sensor entity** to the SMA `pv_power` sensor. Version 0.2.5 auto-detects one unambiguous, available SMA `pv_power` entity and replaces a stale saved selection during migration. |
 | Solar forecast | Choose `auto`, `solcast`, or `panel_model`. Configure the API key in integration options. Hobbyist accounts should also provide their rooftop resource ID; leaving it blank uses Solcast's location-based rooftop endpoint when the account permits it. |
-| EV charger power | Optional. Select EV mode `sensor` and set the EV power entity for the cleanest session forecast; `detect` learns repeated high rectangular loads from total home power. |
+| EV charger power | Optional. Select EV mode `sensor` and set the EV power entity for the cleanest session forecast and live discharge blocking; `detect` learns repeated high rectangular loads from total home power. |
 | PV orientation | Select one of `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, or `NW`. |
 | PV size | Set panel count and Wp rating. A zero panel count disables the internal PV forecast. |
 | PV inverter cap | Defaults to `2000 W` for a Sunny Boy 2.0 style setup; adjust if the inverter or export limit differs. |
 
 The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integrations/sma) exposes `pv_power` as current AC-side solar power, and the [Shelly integration](https://www.home-assistant.io/integrations/shelly/) communicates locally with the device. Home Assistant Recorder short-term statistics train the load model and derive the grid-import average/trend locally; no consumption history leaves Home Assistant. Solcast requests include only the configured rooftop resource ID or Home Assistant location and PV configuration.
+
+## EV Forecast And Discharge Policy
+
+EV mode controls how charger demand is identified:
+
+- `off`: EV demand remains ordinary household load and no EV-specific discharge protection can activate.
+- `detect`: repeated, sustained demand above the learned household baseline is treated as an EV session. This is a statistical fallback and is less reliable for immediate control.
+- `sensor`: the configured charger power sensor is authoritative. Use this mode when the charger exposes current power.
+
+The **EV detection threshold** is the minimum EV power that counts as active charging. In `sensor` mode it applies directly to the charger sensor; in `detect` mode it applies to excess power above the learned household baseline. The default `2800 W` rejects standby noise and many unrelated loads, but it can miss low-current single-phase charging. Set it below the charger's lowest real charging power and above its idle/standby value. For example, `500-1000 W` is usually more appropriate when a dedicated, clean charger sensor is available.
+
+When **Block battery discharge while EV charging** is enabled, predicted EV intervals are marked unavailable for discharge and a live charger reading at or above the threshold stops an active discharge immediately. Charging the battery remains possible when prices justify it and the configured grid-import limit has enough headroom. EV demand remains in total grid-cost and fuse-limit calculations, but it is subtracted from the separate battery-supported-load diagnostic.
 
 ## Exposed Sensors
 
@@ -113,6 +125,9 @@ The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integra
 - `sensor.pylontech_h3x_predictive_dispatch_battery_usable_capacity`
 - `sensor.pylontech_h3x_predictive_dispatch_target_c_rate`
 - `sensor.pylontech_h3x_predictive_dispatch_home_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_ev_charger_power`
+- `sensor.pylontech_h3x_predictive_dispatch_battery_supported_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_ev_discharge_status`
 - `sensor.pylontech_h3x_predictive_dispatch_solar_power`
 - `sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power`
 - `sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power`
@@ -164,6 +179,8 @@ The integration exposes Home Assistant control entities so the strategy can be a
 - `select.pylontech_h3x_predictive_dispatch_strategy_profile`: `conservative`, `typical`, `spread`, `aggressive`, or `custom`.
 - `select.pylontech_h3x_predictive_dispatch_load_forecast_mode`: use Recorder history or the live flat fallback.
 - `select.pylontech_h3x_predictive_dispatch_ev_forecast_mode`: `off`, automatic detection, or a dedicated EV power sensor.
+- `switch.pylontech_h3x_predictive_dispatch_ev_discharge_block`: prevent battery discharge during measured or forecast EV charging intervals.
+- `number.pylontech_h3x_predictive_dispatch_ev_detection_threshold`: minimum charger or detected excess power counted as active EV charging.
 - `switch.pylontech_h3x_predictive_dispatch_dutch_retail_tariff`: apply the Dutch retail transformation to Nord Pool wholesale prices.
 - Load-history, EV threshold, forecast-risk, minimum-duration, start-penalty and direction-change number controls expose the model assumptions at runtime.
 - VAT, energy tax, supplier import markup and supplier export deduction controls keep yearly contract changes user-adjustable.

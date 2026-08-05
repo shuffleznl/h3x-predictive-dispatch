@@ -16,6 +16,7 @@
           "ev_forecast_mode": "EV forecast mode",
           "ev_power_entity": "EV charger power sensor entity",
           "ev_charging_threshold_w": "EV detection threshold W",
+          "block_discharge_while_ev_charging": "Block battery discharge while EV charging",
           "ems_mode_entity": "H3X EMS mode select entity",
           "power_ref_entity": "H3X charge/discharge power reference entity",
           "soc_entity": "Battery SOC sensor entity",
@@ -115,6 +116,7 @@
           "ev_forecast_mode": "EV forecast mode",
           "ev_power_entity": "EV charger power sensor entity",
           "ev_charging_threshold_w": "EV detection threshold W",
+          "block_discharge_while_ev_charging": "Block battery discharge while EV charging",
           "ems_mode_entity": "H3X EMS mode select entity",
           "power_ref_entity": "H3X charge/discharge power reference entity",
           "soc_entity": "Battery SOC sensor entity",
@@ -210,6 +212,9 @@
       "home_load_power": {
         "name": "Home load power"
       },
+      "ev_charger_power": {"name": "EV charger power"},
+      "battery_supported_load_power": {"name": "Battery-supported load power"},
+      "ev_discharge_status": {"name": "EV discharge status"},
       "solar_power": {
         "name": "Solar power"
       },
@@ -316,7 +321,8 @@
       "dutch_tariff_enabled": {"name": "Dutch retail tariff"},
       "periodic_full_charge_enabled": {
         "name": "Periodic full charge"
-      }
+      },
+      "ev_discharge_block": {"name": "Block discharge while EV charging"}
     },
     "number": {
       "load_history_days": {"name": "Load history window"},

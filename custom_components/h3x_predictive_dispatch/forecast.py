@@ -204,7 +204,12 @@ class HistoricalLoadForecaster:
             if self._ev_mode == "off":
                 ev_w = 0.0
             elif self._ev_mode == "sensor" and observation.ev_w is not None:
-                ev_w = min(max(observation.ev_w, 0.0), load_w)
+                measured_ev_w = min(max(observation.ev_w, 0.0), load_w)
+                ev_w = (
+                    measured_ev_w
+                    if measured_ev_w >= self._ev_threshold_w
+                    else 0.0
+                )
             else:
                 baseline = median(recent_base[-32:]) if recent_base else min(load_w, 800.0)
                 excess = max(load_w - baseline, 0.0)

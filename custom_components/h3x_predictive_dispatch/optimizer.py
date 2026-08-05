@@ -28,6 +28,7 @@ class OptimizerSlot:
     sell_price: float
     load: ForecastBand
     solar: ForecastBand
+    discharge_allowed: bool = True
 
     @property
     def duration_h(self) -> float:
@@ -80,6 +81,7 @@ class DispatchSlot:
     solar_p10_w: float
     solar_p90_w: float
     ev_power_w: float
+    ev_discharge_blocked: bool
     grid_without_battery_w: float
     grid_with_battery_w: float
     baseline_cost: float
@@ -125,6 +127,7 @@ class DispatchSlot:
             "solar_p10_w": round(self.solar_p10_w, 1),
             "solar_p90_w": round(self.solar_p90_w, 1),
             "ev_power_w": round(self.ev_power_w, 1),
+            "ev_discharge_blocked": self.ev_discharge_blocked,
             "net_grid_without_battery_w": round(self.grid_without_battery_w, 1),
             "net_grid_with_battery_w": round(self.grid_with_battery_w, 1),
             "baseline_grid_import_kwh": round(max(net_without_kwh, 0.0), 3),
@@ -308,6 +311,9 @@ class PredictiveDispatchOptimizer:
                 "minimum_action_slots": min_run_slots,
                 "risk_percentile": settings.risk_percentile,
                 "terminal_energy_kwh": settings.terminal_energy_kwh,
+                "ev_discharge_blocked_slots": sum(
+                    not slot.discharge_allowed for slot in slots
+                ),
             },
         )
 
@@ -352,7 +358,7 @@ class PredictiveDispatchOptimizer:
                 power = min(settings.max_charge_power_w * fraction, limit)
                 if power >= settings.min_active_power_w:
                     result.append(power)
-        if settings.discharge_allowed:
+        if settings.discharge_allowed and slot.discharge_allowed:
             available = max(energy - settings.min_energy_kwh, 0.0)
             max_by_energy = available * settings.discharge_efficiency / max(slot.duration_h, 1e-6) * 1000
             limit = min(settings.max_discharge_power_w, max_by_energy)
@@ -434,6 +440,7 @@ class PredictiveDispatchOptimizer:
                     solar_p10_w=slot.solar.p10_w,
                     solar_p90_w=slot.solar.p90_w,
                     ev_power_w=slot.load.ev_w,
+                    ev_discharge_blocked=not slot.discharge_allowed,
                     grid_without_battery_w=net_without,
                     grid_with_battery_w=net_with,
                     baseline_cost=baseline,

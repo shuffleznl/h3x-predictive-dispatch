@@ -45,12 +45,34 @@ views:
             name: Load forecast
           - entity: select.pylontech_h3x_predictive_dispatch_ev_forecast_mode
             name: EV analysis
+          - entity: switch.pylontech_h3x_predictive_dispatch_ev_discharge_block
+            name: Block battery discharge while EV charging
+          - entity: number.pylontech_h3x_predictive_dispatch_ev_detection_threshold
+            name: EV charging detection threshold
           - entity: switch.pylontech_h3x_predictive_dispatch_periodic_full_charge
             name: Periodic full charge
           - entity: number.pylontech_h3x_predictive_dispatch_forecast_risk_percentile
             name: Forecast risk (50 expected / 90 worst-case)
           - entity: number.pylontech_h3x_predictive_dispatch_minimum_action_duration
             name: Minimum action duration
+
+      - type: heading
+        heading: EV charging policy
+        icon: mdi:car-electric
+
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_ev_charger_power
+            name: Measured EV charger power
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_battery_supported_load_power
+            name: Home load eligible for battery support
+          - type: tile
+            entity: sensor.pylontech_h3x_predictive_dispatch_ev_discharge_status
+            name: EV discharge policy
 
       - type: heading
         heading: Current dispatch components

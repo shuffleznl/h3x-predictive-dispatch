@@ -125,6 +125,11 @@ def main() -> None:
         "sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost",
         "select.pylontech_h3x_predictive_dispatch_load_forecast_mode",
         "select.pylontech_h3x_predictive_dispatch_ev_forecast_mode",
+        "switch.pylontech_h3x_predictive_dispatch_ev_discharge_block",
+        "number.pylontech_h3x_predictive_dispatch_ev_detection_threshold",
+        "sensor.pylontech_h3x_predictive_dispatch_ev_charger_power",
+        "sensor.pylontech_h3x_predictive_dispatch_battery_supported_load_power",
+        "sensor.pylontech_h3x_predictive_dispatch_ev_discharge_status",
         "switch.pylontech_h3x_predictive_dispatch_automatic_control",
         "select.pylontech_h3x_predictive_dispatch_solar_forecast_source",
         "switch.pylontech_h3x_predictive_dispatch_dutch_retail_tariff",
@@ -152,6 +157,7 @@ def main() -> None:
         "Forecast solar over full horizon",
         "Active or next charge",
         "Price assumptions",
+        "EV charging policy",
     )
     for token in required:
         if token not in source:

@@ -208,6 +208,64 @@ def validate_ev_detection() -> None:
     assert max(band.ev_w for band in forecast.bands) > 1000.0
 
 
+def validate_ev_sensor_threshold() -> None:
+    """Dedicated-sensor standby power below the threshold is ordinary load."""
+    start = datetime(2026, 8, 3, tzinfo=timezone.utc)
+    forecaster = HistoricalLoadForecaster(
+        [
+            PowerObservation(start, 2100.0, ev_w=1400.0),
+            PowerObservation(
+                start + timedelta(minutes=15),
+                8300.0,
+                ev_w=7400.0,
+            ),
+        ],
+        ev_mode="sensor",
+        ev_threshold_w=2800.0,
+    )
+    separated = forecaster._separate_ev_load()
+    assert separated[0][1:] == (2100.0, 0.0)
+    assert separated[1][1:] == (900.0, 7400.0)
+
+
+def validate_ev_discharge_block() -> None:
+    """EV-protected optimizer slots must never discharge the battery."""
+    prices = [0.03] * 8 + [0.50] * 8
+    unblocked_slots = slots(prices, load_w=8300.0)
+    blocked_slots = []
+    for index, slot in enumerate(unblocked_slots):
+        ev_w = 7400.0 if index >= 8 else 0.0
+        blocked_slots.append(
+            OptimizerSlot(
+                start=slot.start,
+                end=slot.end,
+                wholesale_price=slot.wholesale_price,
+                buy_price=slot.buy_price,
+                sell_price=slot.sell_price,
+                load=ForecastBand(
+                    slot.load.p10_w,
+                    slot.load.p50_w,
+                    slot.load.p90_w,
+                    slot.load.samples,
+                    slot.load.confidence,
+                    ev_w=ev_w,
+                ),
+                solar=slot.solar,
+                discharge_allowed=index < 8,
+            )
+        )
+    optimizer = PredictiveDispatchOptimizer()
+    unblocked = optimizer.optimize(unblocked_slots, settings())
+    blocked = optimizer.optimize(blocked_slots, settings())
+    assert any(row.action == "discharge" for row in unblocked.schedule[8:])
+    assert all(row.action != "discharge" for row in blocked.schedule[8:])
+    assert all(
+        row.as_dict()["ev_discharge_blocked"]
+        for row in blocked.schedule[8:]
+    )
+    assert blocked.diagnostics["ev_discharge_blocked_slots"] == 8
+
+
 def validate_solcast_alignment() -> None:
     """Solcast half-hours must be overlap-weighted into market quarters."""
     payload = {
@@ -318,6 +376,8 @@ def main() -> None:
     validate_night_charge_export_threshold()
     validate_grid_limit()
     validate_ev_detection()
+    validate_ev_sensor_threshold()
+    validate_ev_discharge_block()
     validate_solcast_alignment()
     validate_live_solar_surplus_target()
     validate_low_solar_grid_charge()

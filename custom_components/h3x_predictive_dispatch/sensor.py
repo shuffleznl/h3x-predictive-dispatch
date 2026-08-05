@@ -132,6 +132,16 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "load_forecast_bias_w",
             "ev_forecast_mode",
             "ev_sessions_detected",
+            "ev_power_entity",
+            "ev_power_sensor_available",
+            "ev_power_sensor_w",
+            "ev_forecast_power_w",
+            "ev_charging_threshold_w",
+            "ev_charging_active",
+            "ev_discharge_block_enabled",
+            "ev_discharge_block_active",
+            "ev_excluded_load_power_w",
+            "battery_supported_load_power_w",
             "pv_orientation",
             "pv_panel_count",
             "pv_panel_wp",
@@ -178,6 +188,10 @@ def _decision_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "solar_power_w": data.get("solar_power_w"),
             "forecast_load_power_w": data.get("forecast_load_power_w"),
             "forecast_solar_power_w": data.get("forecast_solar_power_w"),
+            "ev_power_w": data.get("ev_power_w"),
+            "battery_supported_load_power_w": data.get(
+                "battery_supported_load_power_w"
+            ),
             "economic_grid_charge_power_w": data.get(
                 "economic_grid_charge_power_w"
             ),
@@ -277,6 +291,23 @@ def _price_trend_attributes(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _ev_discharge_status(data: dict[str, Any]) -> str:
+    """Return a concise state for the EV discharge policy."""
+    attributes = data.get("attributes") or {}
+    if not attributes.get("ev_discharge_block_enabled"):
+        return "disabled"
+    if attributes.get("ev_forecast_mode") == "off":
+        return "ev_analysis_off"
+    if (
+        attributes.get("ev_forecast_mode") == "sensor"
+        and not attributes.get("ev_power_sensor_available")
+    ):
+        return "sensor_unavailable"
+    if attributes.get("ev_discharge_block_active"):
+        return "discharge_blocked"
+    return "monitoring"
+
+
 SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
     H3XPredictiveDispatchSensorDescription(
         key="decision",
@@ -342,6 +373,65 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:home-lightning-bolt",
         value_fn=lambda data: data.get("load_power_w"),
+    ),
+    H3XPredictiveDispatchSensorDescription(
+        key="ev_charger_power",
+        translation_key="ev_charger_power",
+        name="EV charger power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:ev-station",
+        value_fn=lambda data: data.get("ev_power_w"),
+        extra_fn=lambda data: {
+            "entity": _attribute(data, "ev_power_entity"),
+            "threshold_w": _attribute(data, "ev_charging_threshold_w"),
+            "charging_active": _attribute(data, "ev_charging_active"),
+        },
+    ),
+    H3XPredictiveDispatchSensorDescription(
+        key="battery_supported_load_power",
+        translation_key="battery_supported_load_power",
+        name="Battery-supported load power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-battery",
+        value_fn=lambda data: data.get("battery_supported_load_power_w"),
+        extra_fn=lambda data: {
+            "total_home_load_w": data.get("load_power_w"),
+            "excluded_ev_power_w": _attribute(
+                data, "ev_excluded_load_power_w"
+            ),
+            "policy_active": _attribute(
+                data, "ev_discharge_block_active"
+            ),
+        },
+    ),
+    H3XPredictiveDispatchSensorDescription(
+        key="ev_discharge_status",
+        translation_key="ev_discharge_status",
+        name="EV discharge status",
+        icon="mdi:battery-lock",
+        value_fn=_ev_discharge_status,
+        extra_fn=lambda data: {
+            "mode": _attribute(data, "ev_forecast_mode"),
+            "power_entity": _attribute(data, "ev_power_entity"),
+            "sensor_available": _attribute(
+                data, "ev_power_sensor_available"
+            ),
+            "sensor_power_w": _attribute(data, "ev_power_sensor_w"),
+            "forecast_power_w": _attribute(data, "ev_forecast_power_w"),
+            "threshold_w": _attribute(data, "ev_charging_threshold_w"),
+            "charging_active": _attribute(data, "ev_charging_active"),
+            "block_enabled": _attribute(
+                data, "ev_discharge_block_enabled"
+            ),
+            "block_active": _attribute(data, "ev_discharge_block_active"),
+            "excluded_load_w": _attribute(
+                data, "ev_excluded_load_power_w"
+            ),
+        },
     ),
     H3XPredictiveDispatchSensorDescription(
         key="solar_power",
