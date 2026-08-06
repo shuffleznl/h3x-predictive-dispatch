@@ -18,7 +18,7 @@ It shows:
 
 ## Requirements
 
-1. Install `https://github.com/shuffleznl/pylontech-fh3x-bridge` through HACS.
+1. Install `https://github.com/shuffleznl/h3x-bridge` through HACS.
 2. Install `https://github.com/shuffleznl/h3x-predictive-dispatch` through HACS.
 3. No custom Lovelace cards are required. The dashboard uses Home Assistant's native tile, entities, attribute, heading, grid, and history-graph cards.
 

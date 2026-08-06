@@ -19,7 +19,7 @@ This repository contains one HACS integration:
 - Home Assistant `2024.12.0` or newer.
 - HACS.
 - Nord Pool integration configured in Home Assistant.
-- Pylontech H3X Bridge installed from `https://github.com/shuffleznl/pylontech-fh3x-bridge`.
+- Pylontech H3X Bridge installed from `https://github.com/shuffleznl/h3x-bridge`.
 - Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors, an SMA Sunny Boy PV power sensor, and a Solcast rooftop forecast API key.
 
 ## Predictive Dispatch Architecture

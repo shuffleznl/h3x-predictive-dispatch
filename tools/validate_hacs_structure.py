@@ -42,12 +42,27 @@ def main() -> None:
         raise AssertionError(f"manifest.json missing keys: {sorted(missing)}")
     if manifest["domain"] != DOMAIN:
         raise AssertionError(f"manifest domain must be {DOMAIN}")
+    if set(manifest.get("after_dependencies", [])) != {
+        "nordpool",
+        "pylontech_h3x_bridge",
+        "recorder",
+    }:
+        raise AssertionError(
+            "after_dependencies must retain Nord Pool, Pylontech H3X Bridge, "
+            "and Recorder"
+        )
     if str(manifest["version"]).endswith("-dev"):
         raise AssertionError("manifest version must be a release version")
     if "h3x-predictive-dispatch" not in manifest["documentation"]:
         raise AssertionError("manifest documentation points to the wrong repository")
     if "h3x-predictive-dispatch" not in manifest["issue_tracker"]:
         raise AssertionError("manifest issue tracker points to the wrong repository")
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    if "https://github.com/shuffleznl/h3x-bridge" not in readme:
+        raise AssertionError("README must link to the renamed H3X Bridge repository")
+    if "pylontech-fh3x-bridge" in readme:
+        raise AssertionError("README still links to the old bridge repository name")
 
     hacs = load_json(ROOT / "hacs.json")
     if not hacs.get("render_readme"):
