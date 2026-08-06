@@ -19,6 +19,8 @@ jobs:
         run: python -m compileall custom_components tools
       - name: Validate HACS structure
         run: python tools/validate_hacs_structure.py
+      - name: Validate H3X Bridge contract
+        run: python tools/validate_bridge_contract.py
       - name: Validate sensor metadata
         run: python tools/validate_sensor_metadata.py
       - name: Validate periodic full-charge wiring

@@ -19,7 +19,7 @@ This repository contains one HACS integration:
 - Home Assistant `2024.12.0` or newer.
 - HACS.
 - Nord Pool integration configured in Home Assistant.
-- Pylontech H3X Bridge installed from `https://github.com/shuffleznl/h3x-bridge`.
+- Pylontech H3X Bridge `0.3.9` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
 - Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors, an SMA Sunny Boy PV power sensor, and a Solcast rooftop forecast API key.
 
 ## Predictive Dispatch Architecture
@@ -37,6 +37,8 @@ The controller recalculates a rolling schedule every five minutes over every pub
 This follows the operational strengths visible in [ChargeIQ](https://github.com/johanzander/bess-manager), [Predbat](https://github.com/springfall2008/batpred), and [EMHASS](https://github.com/davidusb-geek/emhass): explicit counterfactual cost, degradation-aware optimization, forecast-vs-actual diagnostics, fuse protection and continuous re-planning. The implementation remains a native HACS integration and does not require a separate add-on or cloud service.
 
 The controller calls the Nord Pool `get_price_indices_for_date` service, falls back to `get_prices_for_date` when custom-resolution indices are empty, reads the Pylontech H3X Bridge sensors, and writes the Pylontech H3X Bridge EMS mode and charge/discharge power entities when automatic control is enabled.
+
+Bridge repository releases and Predictive Dispatch releases are independent. The Home Assistant bridge domain remains `pylontech_h3x_bridge` after the repository rename, so existing entity IDs and configured entity selections do not need migration. Bridge `0.3.9` moved optimizer dashboards out of the bridge package; Predictive Dispatch continues to package its own dashboard under `custom_components/h3x_predictive_dispatch/dashboards/`.
 
 The Nord Pool config entry is resolved automatically at runtime. If Home Assistant recreates the Nord Pool entry during an update, the controller falls back from the old stored entry ID to the current entry instead of returning empty price slots.
 
@@ -347,6 +349,7 @@ Run local validation with `uv`:
 $env:UV_PYTHON_INSTALL_DIR='.uv-python'
 uv --cache-dir .uv-cache run --python 3.13 python -m compileall custom_components tools
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_hacs_structure.py
+uv --cache-dir .uv-cache run --python 3.13 python tools/validate_bridge_contract.py
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_sensor_metadata.py
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_periodic_full_charge.py
 uv --cache-dir .uv-cache run --python 3.13 python tools/validate_control_entities.py
