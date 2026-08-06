@@ -167,62 +167,6 @@ The **EV detection threshold** is the minimum EV power that counts as active cha
 
 When **Block battery discharge while EV charging** is enabled, predicted EV intervals are marked unavailable for discharge and a live charger reading at or above the threshold stops an active discharge immediately. Charging the battery remains possible when prices justify it and the configured grid-import limit has enough headroom. EV demand remains in total grid-cost and fuse-limit calculations, but it is subtracted from the separate battery-supported-load diagnostic.
 
-## Exposed Sensors
-
-- `sensor.pylontech_h3x_predictive_dispatch_decision`
-- `sensor.pylontech_h3x_predictive_dispatch_target_power`
-- `sensor.pylontech_h3x_predictive_dispatch_target_power_percent`
-- `sensor.pylontech_h3x_predictive_dispatch_battery_system_capacity`
-- `sensor.pylontech_h3x_predictive_dispatch_battery_usable_capacity`
-- `sensor.pylontech_h3x_predictive_dispatch_target_c_rate`
-- `sensor.pylontech_h3x_predictive_dispatch_home_load_power`
-- `sensor.pylontech_h3x_predictive_dispatch_ev_charger_power`
-- `sensor.pylontech_h3x_predictive_dispatch_battery_supported_load_power`
-- `sensor.pylontech_h3x_predictive_dispatch_ev_discharge_status`
-- `sensor.pylontech_h3x_predictive_dispatch_solar_power`
-- `sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power`
-- `sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power`
-- `sensor.pylontech_h3x_predictive_dispatch_grid_net_power` (positive import, negative export)
-- `sensor.pylontech_h3x_predictive_dispatch_grid_import_power` (non-negative import guard value)
-- `sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average`
-- `sensor.pylontech_h3x_predictive_dispatch_grid_import_trend`
-- `sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom`
-- `sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status`
-- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_power`
-- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power`
-- `sensor.pylontech_h3x_predictive_dispatch_next_charge_slot`
-- `sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot`
-- `sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot`
-- `sensor.pylontech_h3x_predictive_dispatch_current_price`
-- `sensor.pylontech_h3x_predictive_dispatch_price_trend`
-- `sensor.pylontech_h3x_predictive_dispatch_decision_reason`
-- `sensor.pylontech_h3x_predictive_dispatch_first_slot_value`
-- `sensor.pylontech_h3x_predictive_dispatch_estimated_savings`
-- `sensor.pylontech_h3x_predictive_dispatch_estimated_savings_today`
-- `sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost`
-- `sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost`
-- `sensor.pylontech_h3x_predictive_dispatch_modeled_cycle_cost`
-- `sensor.pylontech_h3x_predictive_dispatch_modeled_transition_cost`
-- `sensor.pylontech_h3x_predictive_dispatch_load_forecast_mae`
-- `sensor.pylontech_h3x_predictive_dispatch_planned_equivalent_full_cycles`
-- `sensor.pylontech_h3x_predictive_dispatch_planned_charge_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_planned_discharge_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_planned_grid_charge_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_planned_solar_charge_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_planned_self_consumption_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_planned_battery_export_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_energy`
-- `sensor.pylontech_h3x_predictive_dispatch_price_plan`
-- `sensor.pylontech_h3x_predictive_dispatch_price_resolution`
-- `sensor.pylontech_h3x_predictive_dispatch_price_slots_available`
-
-The `next_charge_slot`, `next_discharge_slot`, and `periodic_full_charge_slot` sensors expose the first planned slot as the state and keep `start`, `end`, `energy_kwh`, `target_power_w`, `price`, `value`, `grid_charge_kwh`, `solar_charge_kwh`, `self_consumption_kwh`, and `battery_export_kwh` in attributes.
-
-Live load and solar sensors are measurements at the current update. The forecast load and solar sensors represent the next price interval, not the calibrated current interval; the decision attributes expose that interval's start and end. Current economic grid-charge power and measured solar surplus are always present on the decision entity, including as `0 W` when inactive, instead of appearing only on a current solar-charge plan row.
-
-The `price_plan` sensor is a unitless diagnostic carrier for Lovelace charting. It carries `price_slots`, `price_trend`, `load_forecast`, `solar_forecast`, and `dispatch_plan` attributes, and those large chart arrays are excluded from recorder history to keep the Home Assistant database small. `price_trend` is a rolling trendline over the price slots with `trend_price`, `delta_next`, and `trend_direction` values. Currency values use the resolved Nord Pool ISO 4217 currency code, for example `EUR` or `DKK`.
-
 ## Runtime Controls
 
 The integration exposes Home Assistant control entities so the strategy can be adjusted without opening the full options form:
@@ -338,6 +282,62 @@ This controller writes through Pylontech H3X Bridge. If discharging works but gr
 ## Nord Pool Update Caveat
 
 If current price is `unknown` after updating or recreating the Nord Pool integration, check the `Decision` sensor attributes for `price_fetch_errors`. Capacity sensors should still stay populated from the bridge or module-count fallback even when price fetching is temporarily unavailable.
+
+## Exposed Sensors
+
+- `sensor.pylontech_h3x_predictive_dispatch_decision`
+- `sensor.pylontech_h3x_predictive_dispatch_target_power`
+- `sensor.pylontech_h3x_predictive_dispatch_target_power_percent`
+- `sensor.pylontech_h3x_predictive_dispatch_battery_system_capacity`
+- `sensor.pylontech_h3x_predictive_dispatch_battery_usable_capacity`
+- `sensor.pylontech_h3x_predictive_dispatch_target_c_rate`
+- `sensor.pylontech_h3x_predictive_dispatch_home_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_ev_charger_power`
+- `sensor.pylontech_h3x_predictive_dispatch_battery_supported_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_ev_discharge_status`
+- `sensor.pylontech_h3x_predictive_dispatch_solar_power`
+- `sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power`
+- `sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_net_power` (positive import, negative export)
+- `sensor.pylontech_h3x_predictive_dispatch_grid_import_power` (non-negative import guard value)
+- `sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_import_trend`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom`
+- `sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_power`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power`
+- `sensor.pylontech_h3x_predictive_dispatch_next_charge_slot`
+- `sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot`
+- `sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot`
+- `sensor.pylontech_h3x_predictive_dispatch_current_price`
+- `sensor.pylontech_h3x_predictive_dispatch_price_trend`
+- `sensor.pylontech_h3x_predictive_dispatch_decision_reason`
+- `sensor.pylontech_h3x_predictive_dispatch_first_slot_value`
+- `sensor.pylontech_h3x_predictive_dispatch_estimated_savings`
+- `sensor.pylontech_h3x_predictive_dispatch_estimated_savings_today`
+- `sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_modeled_cycle_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_modeled_transition_cost`
+- `sensor.pylontech_h3x_predictive_dispatch_load_forecast_mae`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_equivalent_full_cycles`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_charge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_discharge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_grid_charge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_solar_charge_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_self_consumption_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_planned_battery_export_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_load_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_forecast_solar_energy`
+- `sensor.pylontech_h3x_predictive_dispatch_price_plan`
+- `sensor.pylontech_h3x_predictive_dispatch_price_resolution`
+- `sensor.pylontech_h3x_predictive_dispatch_price_slots_available`
+
+The `next_charge_slot`, `next_discharge_slot`, and `periodic_full_charge_slot` sensors expose the first planned slot as the state and keep `start`, `end`, `energy_kwh`, `target_power_w`, `price`, `value`, `grid_charge_kwh`, `solar_charge_kwh`, `self_consumption_kwh`, and `battery_export_kwh` in attributes.
+
+Live load and solar sensors are measurements at the current update. The forecast load and solar sensors represent the next price interval, not the calibrated current interval; the decision attributes expose that interval's start and end. Current economic grid-charge power and measured solar surplus are always present on the decision entity, including as `0 W` when inactive, instead of appearing only on a current solar-charge plan row.
+
+The `price_plan` sensor is a unitless diagnostic carrier for Lovelace charting. It carries `price_slots`, `price_trend`, `load_forecast`, `solar_forecast`, and `dispatch_plan` attributes, and those large chart arrays are excluded from recorder history to keep the Home Assistant database small. `price_trend` is a rolling trendline over the price slots with `trend_price`, `delta_next`, and `trend_direction` values. Currency values use the resolved Nord Pool ISO 4217 currency code, for example `EUR` or `DKK`.
 
 ## Validation
 
