@@ -34,11 +34,62 @@ The controller recalculates a rolling schedule every five minutes over every pub
 6. A dynamic program minimizes expected grid cost plus forecast-tail risk, conversion losses, battery throughput cost, minimum profit margin, action-start cost and direction-change cost. SOC, C-rate, inverter power, import/export limits, minimum action duration, temperature permissions and terminal SOC are hard constraints.
 7. Only the current slot is dispatched. New measurements or prices cause a complete re-optimization, which is model-predictive control rather than a once-daily schedule.
 
-This follows the operational strengths visible in [ChargeIQ](https://github.com/johanzander/bess-manager), Predbat and EMHASS: explicit counterfactual cost, degradation-aware optimization, forecast-vs-actual diagnostics, fuse protection and continuous re-planning. The implementation remains a native HACS integration and does not require a separate add-on or cloud service.
+This follows the operational strengths visible in [ChargeIQ](https://github.com/johanzander/bess-manager), [Predbat](https://github.com/springfall2008/batpred), and [EMHASS](https://github.com/davidusb-geek/emhass): explicit counterfactual cost, degradation-aware optimization, forecast-vs-actual diagnostics, fuse protection and continuous re-planning. The implementation remains a native HACS integration and does not require a separate add-on or cloud service.
 
 The controller calls the Nord Pool `get_price_indices_for_date` service, falls back to `get_prices_for_date` when custom-resolution indices are empty, reads the Pylontech H3X Bridge sensors, and writes the Pylontech H3X Bridge EMS mode and charge/discharge power entities when automatic control is enabled.
 
 The Nord Pool config entry is resolved automatically at runtime. If Home Assistant recreates the Nord Pool entry during an update, the controller falls back from the old stored entry ID to the current entry instead of returning empty price slots.
+
+## Load-Forecast Economic Simulation
+
+A controlled simulation was run to determine whether household-load forecasting adds enough economic value to justify its complexity, or whether a simpler PV/price policy with fewer battery cycles performs just as well. Every policy received the same price and PV information; only its knowledge of future household demand changed.
+
+### Inputs And Assumptions
+
+- 672 actual Dutch quarter-hour day-ahead prices for 27 July through 2 August 2026 from the [Fraunhofer Energy-Charts API](https://api.energy-charts.info/price?bzn=NL&start=2026-07-27&end=2026-08-02). Wholesale prices ranged from `-0.00452 EUR/kWh` to `0.33901 EUR/kWh`.
+- A six-module Force H3 battery with a `21.85 kWh` modeled operating span, `11 kW` charge/discharge power and `90%` round-trip efficiency.
+- The integration's Dutch retail tariff transformation and `0.035 EUR/kWh` modeled battery cycle cost.
+- A synthetic electrified-home load profile totaling `255.5 kWh/week`, containing morning and evening demand, heat-pump background load, random appliance/water-heating events and measurement noise.
+- A synthetic modest PV installation producing `78.5 kWh/week`, with different cloud factors per day. PV generation was identical for all policies so the experiment isolated load-forecast value.
+- Initial and terminal battery energy were both `15 kWh`, preventing a policy from reporting artificial savings by simply emptying the battery at the end.
+
+The simulation supplied the complete price week to every policy, rather than reproducing the integration's rolling 36-hour information boundary. Its absolute savings should therefore be treated as an optimistic controlled comparison, not an annual return forecast. The load and PV profiles are representative synthetic data, not Recorder data from this installation. Fixed charges, the annual tax rebate, inverter standby consumption and supplier-specific export restrictions were excluded.
+
+### Results
+
+Net savings are electricity-bill savings after modeled battery wear. Equivalent full cycles (`EFC`) use the modeled `21.85 kWh` operating span. A charge/discharge window is one contiguous non-idle action and is not itself a full cycle.
+
+| Policy | Net savings/week | EFC/week | Charge/discharge windows |
+| --- | ---: | ---: | ---: |
+| Perfect household-load foresight | `17.91 EUR` | `5.72` | `20` |
+| Historical morning/evening load profile | `17.13 EUR` | `5.69` | `19` |
+| Flat average household load | `14.14 EUR` | `5.15` | `14` |
+| Optimized price/PV policy with no load knowledge | `8.46 EUR` | `3.50` | `10` |
+| PV-only charging with one daily peak discharge period | `7.23 EUR` | `1.15` | `20` |
+
+The historical quarter-hour pattern retained `95.7%` of the perfect-foresight savings. Perfect appliance-level prediction was worth only another `0.78 EUR` during this test week, while replacing the historical shape with one flat average lost `2.99 EUR`. Removing load knowledge entirely lost `8.67 EUR`, approximately half the forecast-aware result.
+
+The main cause is Dutch tariff asymmetry. Battery energy used behind the meter can avoid the wholesale import price, energy tax, supplier markup and VAT. Export normally earns only the export tariff. A load-unaware controller can therefore export stored energy during a wholesale peak and later repurchase taxed electricity for household demand. A coarse load forecast helps retain the right amount of energy for morning/evening self-consumption without requiring exact appliance prediction.
+
+### Fewer-Cycle Sensitivity
+
+The historical-profile policy was rerun with stronger action-start and direction-change penalties plus a longer minimum action duration:
+
+| Setting | Net savings/week | EFC/week | Charge/discharge windows |
+| --- | ---: | ---: | ---: |
+| Current-style anti-chatter settings | `17.13 EUR` | `5.69` | `19` |
+| Moderate anti-cycling settings | `16.98 EUR` | `5.49` | `15` |
+
+Moderate anti-cycling removed `21%` of action windows and reduced throughput by about `3.5%`, while sacrificing only `0.15 EUR`, or `0.9%`, of net savings. Raising the penalties further produced the same schedule, indicating that the remaining cycles cleared a meaningful economic threshold.
+
+### Interpretation
+
+- Retain a coarse Recorder-trained weekday/weekend and quarter-hour load forecast. It materially improves energy reservation for taxed self-consumption.
+- Keep live-load correction and rolling re-optimization. With a large `30 kWh` battery, these feedback mechanisms make precise appliance-level forecasting less valuable.
+- Prefer explicit minimum-duration, action-start, direction-change and minimum-profit constraints over deleting load forecasting as a way to reduce battery activity.
+- Do not infer annual savings from this one volatile summer week. A trustworthy site-specific decision requires replaying at least one year of actual Shelly load, SMA PV, Nord Pool prices and realized battery behavior.
+
+Related Home Assistant energy optimizers provide useful reference points. [Predbat documentation](https://springfall2008.github.io/batpred/) describes battery/PV prediction, actual-versus-predicted calibration, cost tracking and automatic re-planning. [EMHASS documentation](https://emhass.readthedocs.io/en/latest/) describes a configurable linear-programming energy manager with load/PV forecasts, batteries, deferrable loads and model-predictive operation. Broader forecasting evidence includes [Using solar and load predictions in battery scheduling at the residential level](https://arxiv.org/abs/1810.11178) and Stanford's [Home Battery Dispatch under a Tiered Peak Power Tariff](https://web.stanford.edu/~boyd/papers/hbd.html). These projects and studies informed the comparison criteria; this integration does not copy their control code and the results above are not cross-project benchmarks.
 
 ## HACS Installation
 
