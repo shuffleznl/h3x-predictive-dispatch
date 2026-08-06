@@ -187,12 +187,17 @@ class H3XPredictiveDispatchSelect(CoordinatorEntity[H3XPredictiveDispatchCoordin
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return profile details for the strategy selector."""
         if self.entity_description.option_key == CONF_STRATEGY_PROFILE:
-            return {
-                "conservative": "preserve SOC, weekly full charge, higher profit margin, spread discharge, no peak power",
-                "typical": "balanced default profile with spread discharge",
-                "spread": "lower C-rate and longer action windows across economically similar slots",
-                "aggressive": "reserve-only horizon, no periodic full-charge constraint, 100% max SOC, max-economic discharge, lowest extra margin",
+            profiles = {
+                "conservative": "25% reserve, 85% max SOC, 0.35C, 60-minute runs, high forecast protection, no peak power",
+                "typical": "20% reserve, 90% max SOC, 0.5C charge / 0.45C discharge, 30-minute runs, balanced margins",
+                "spread": "20% reserve, 90% max SOC, 0.4C charge / 0.3C discharge, 45-minute runs, spread across up to 5 hours",
+                "aggressive": "15% reserve, 100% max SOC, 0.5C, 15-minute runs, no extra profit margin or periodic-full-charge constraint",
                 "custom": "manual settings differ from a built-in profile",
+            }
+            active = self.current_option or "custom"
+            return {
+                "active_profile_description": profiles.get(active, profiles["custom"]),
+                **profiles,
             }
         if self.entity_description.option_key == CONF_DISCHARGE_POWER_MODE:
             return {

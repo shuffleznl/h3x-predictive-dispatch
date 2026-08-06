@@ -155,6 +155,8 @@ Shelly and SMA entity IDs are generated from the device names in Home Assistant,
 | PV size | Set panel count and Wp rating. A zero panel count disables the internal PV forecast. |
 | PV inverter cap | Defaults to `2000 W` for a Sunny Boy 2.0 style setup; adjust if the inverter or export limit differs. |
 
+The Shelly grid input must be the signed, instantaneous **Total active power** sensor at the grid connection, not an accumulated active-energy sensor, apparent power, or a household-load-only sensor. Shelly reports this value as the signed sum of all phases in watts. A raw source state of `0.000` therefore produces zero signed power, import, 15-minute average, and trend by design; it is not replaced with a guessed value. The dashboard exposes the selected entity, raw state/unit, normalized watts, source status, last report age, and all auto-detected candidate states. Use **Configure Shelly grid source** there when the selected source is wrong. See the [Shelly EM status specification](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/EM/) and [Home Assistant Shelly integration](https://www.home-assistant.io/integrations/shelly/).
+
 The Home Assistant [SMA Solar integration](https://www.home-assistant.io/integrations/sma) exposes `pv_power` as current AC-side solar power, and the [Shelly integration](https://www.home-assistant.io/integrations/shelly/) communicates locally with the device. Home Assistant Recorder short-term statistics train the load model and derive the grid-import average/trend locally; no consumption history leaves Home Assistant. Solcast requests include only the configured rooftop resource ID or Home Assistant location and PV configuration.
 
 ## EV Forecast And Discharge Policy

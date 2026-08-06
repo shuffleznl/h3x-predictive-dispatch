@@ -166,8 +166,8 @@ def main() -> None:
             raise AssertionError(
                 f"usable capacity for {modules} modules differs by {deviation:.2f}%"
             )
-    if '"version": "0.2.10"' not in read(INTEGRATION / "manifest.json"):
-        raise AssertionError("manifest version must be 0.2.10")
+    if '"version": "0.2.11"' not in read(INTEGRATION / "manifest.json"):
+        raise AssertionError("manifest version must be 0.2.11")
     if "CONF_CONTROL_ENABLED: False" not in const_source:
         raise AssertionError("standalone coexistence build must default control to off")
     if "configured and configured.lower() != \"auto\"" not in coordinator_source:
@@ -209,6 +209,10 @@ def main() -> None:
         "live_solar_surplus_power_w",
         "forecast_power_slot_start",
         "grid_net_power_w",
+        "grid_import_input_status",
+        "grid_import_source_last_reported",
+        "grid_import_source_age_seconds",
+        "grid_import_candidate_states",
     ):
         if stable_attribute not in sensor_source:
             raise AssertionError(

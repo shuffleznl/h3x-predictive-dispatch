@@ -1949,6 +1949,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return raw meter input details for dashboard troubleshooting."""
         raw_states: list[str] = []
         raw_units: list[str] = []
+        reported_at: list[datetime] = []
         for entity_id in entity_ids:
             state = self.hass.states.get(entity_id)
             if state is None:
@@ -1959,21 +1960,68 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raw_units.append(
                 str((state.attributes or {}).get("unit_of_measurement") or "")
             )
+            timestamp = getattr(state, "last_reported", None) or getattr(
+                state, "last_updated", None
+            )
+            if isinstance(timestamp, datetime):
+                reported_at.append(timestamp)
         normalized = [self._power_state_w(entity_id) for entity_id in entity_ids]
         signed_w = (
             sum(value for value in normalized if value is not None)
             if normalized and all(value is not None for value in normalized)
             else None
         )
+        latest_report = max(reported_at) if reported_at else None
+        age_seconds = (
+            max((dt_util.utcnow() - dt_util.as_utc(latest_report)).total_seconds(), 0.0)
+            if latest_report is not None
+            else None
+        )
+        if not entity_ids:
+            input_status = "source_not_configured"
+        elif signed_w is None:
+            input_status = "source_unavailable"
+        elif abs(signed_w) < 0.5:
+            input_status = "source_reports_zero"
+        else:
+            input_status = "source_reports_power"
+
+        candidates = shelly_total_active_power_candidates(self.hass)
+        candidate_states = []
+        for candidate in candidates[:8]:
+            state = self.hass.states.get(candidate)
+            candidate_states.append(
+                {
+                    "entity_id": candidate,
+                    "state": str(state.state) if state is not None else "unavailable",
+                    "unit": str(
+                        ((state.attributes or {}) if state is not None else {}).get(
+                            "unit_of_measurement"
+                        )
+                        or ""
+                    ),
+                    "normalized_w": (
+                        round(value, 1)
+                        if (value := self._power_state_w(candidate)) is not None
+                        else None
+                    ),
+                }
+            )
         return {
+            "grid_import_input_status": input_status,
             "grid_import_raw_state": ", ".join(raw_states) or None,
             "grid_import_raw_unit": ", ".join(raw_units) or None,
+            "grid_import_source_last_reported": (
+                latest_report.isoformat() if latest_report is not None else None
+            ),
+            "grid_import_source_age_seconds": (
+                round(age_seconds, 1) if age_seconds is not None else None
+            ),
             "grid_import_normalized_signed_power_w": (
                 round(signed_w, 1) if signed_w is not None else None
             ),
-            "grid_import_autodetected_candidates": list(
-                shelly_total_active_power_candidates(self.hass)
-            ),
+            "grid_import_autodetected_candidates": list(candidates),
+            "grid_import_candidate_states": candidate_states,
         }
 
     def _solar_power_measurement(self) -> tuple[float | None, str, str]:

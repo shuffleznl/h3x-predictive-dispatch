@@ -80,4 +80,6 @@ reported in the Home Assistant log instead of silently adding a suffix.
 
 Dashboard measurements use dedicated entities so their More Info dialogs open the selected measurement instead of the general decision sensor. Restart Home Assistant after an integration upgrade so newly added entities are registered before refreshing the dashboard.
 
+The Shelly diagnostics distinguish a coordinator failure from an upstream zero. `source_reports_zero` means the configured entity itself currently reports zero; compare its report age and the candidate source states, then use the dashboard configuration button to select the signed grid **Total active power** entity when necessary. The strategy guide is rendered with native attribute rows because Home Assistant's native entities card does not provide per-option hover tooltips.
+
 The live load/solar tiles are current measurements. The next-interval tiles are rolling predictions for the timestamp shown in their attributes, while the larger horizon tiles are future energy totals from now through the configured optimization horizon. Home Assistant records each successive forecast state, so a forecast entity's More Info dialog contains the history of earlier forecasts; that recorder history is not a forecast for past time. The dashboard history graph intentionally includes only measured load and PV.

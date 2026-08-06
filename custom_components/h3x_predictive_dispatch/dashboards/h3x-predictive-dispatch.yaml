@@ -56,6 +56,31 @@ views:
           - entity: number.pylontech_h3x_predictive_dispatch_minimum_action_duration
             name: Minimum action duration
 
+      - type: entities
+        title: Strategy profile guide
+        show_header_toggle: false
+        entities:
+          - type: attribute
+            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+            attribute: active_profile_description
+            name: Selected profile
+          - type: attribute
+            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+            attribute: conservative
+            name: Conservative
+          - type: attribute
+            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+            attribute: typical
+            name: Typical
+          - type: attribute
+            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+            attribute: spread
+            name: Spread
+          - type: attribute
+            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+            attribute: aggressive
+            name: Aggressive
+
       - type: heading
         heading: EV charging policy
         icon: mdi:car-electric
@@ -246,6 +271,10 @@ views:
         title: Shelly Pro 3EM grid trend and limits
         show_header_toggle: false
         entities:
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: input_status
+            name: Shelly input status
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power
             name: Signed grid power (+import / -export)
           - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
@@ -276,6 +305,28 @@ views:
             name: Raw Shelly unit
           - type: attribute
             entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: normalized_signed_power_w
+            name: Normalized signed source power
+            suffix: W
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: source_last_reported
+            name: Source last reported
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: source_age_seconds
+            name: Source report age
+            suffix: s
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: autodetected_candidates
+            name: Auto-detected Shelly candidates
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+            attribute: candidate_states
+            name: Candidate source states
+          - type: attribute
+            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
             attribute: samples
             name: Recorder samples in 15-minute window
           - type: attribute
@@ -297,6 +348,14 @@ views:
             name: Effective battery circuit capacity
           - entity: number.pylontech_h3x_predictive_dispatch_battery_circuit_limit
             name: Custom battery circuit limit (custom selection only)
+
+      - type: button
+        name: Configure Shelly grid source
+        icon: mdi:meter-electric-outline
+        show_state: false
+        tap_action:
+          action: navigate
+          navigation_path: /config/integrations/integration/h3x_predictive_dispatch
 
       - type: history-graph
         title: Shelly grid import and charge headroom

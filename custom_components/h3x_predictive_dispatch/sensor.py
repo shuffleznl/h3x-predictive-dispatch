@@ -590,11 +590,21 @@ SENSORS: tuple[H3XPredictiveDispatchSensorDescription, ...] = (
             ),
             "raw_state": _attribute(data, "grid_import_raw_state"),
             "raw_unit": _attribute(data, "grid_import_raw_unit"),
+            "input_status": _attribute(data, "grid_import_input_status"),
+            "source_last_reported": _attribute(
+                data, "grid_import_source_last_reported"
+            ),
+            "source_age_seconds": _attribute(
+                data, "grid_import_source_age_seconds"
+            ),
             "normalized_signed_power_w": _attribute(
                 data, "grid_import_normalized_signed_power_w"
             ),
             "autodetected_candidates": _attribute(
                 data, "grid_import_autodetected_candidates"
+            ),
+            "candidate_states": _attribute(
+                data, "grid_import_candidate_states"
             ),
         },
     ),
