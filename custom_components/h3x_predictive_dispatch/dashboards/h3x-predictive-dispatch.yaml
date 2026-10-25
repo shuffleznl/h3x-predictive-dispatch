@@ -1,446 +1,451 @@
 title: H3X Predictive Dispatch
 views:
-  - title: Predictive dispatch
-    path: h3x-predictive-dispatch
-    icon: mdi:home-battery
+- title: Predictive dispatch
+  path: h3x-predictive-dispatch
+  icon: mdi:home-battery
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    column_span: 3
     cards:
-      - type: heading
-        heading: Predictive dispatch
-        icon: mdi:home-battery
-
-      - type: grid
-        columns: 4
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            name: Command
-            icon: mdi:state-machine
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision_reason
-            name: Reason
-            icon: mdi:text-box-check
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_target_power
-            name: Target power
-            icon: mdi:flash
-          - type: tile
-            entity: sensor.pylontech_h3x_bridge_battery_soc
-            name: Battery SOC
-            icon: mdi:battery
-
-      - type: entities
-        title: Optimizer controls
-        show_header_toggle: false
-        entities:
-          - entity: switch.pylontech_h3x_predictive_dispatch_automatic_control
-            name: Automatic control
-          - entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
-            name: Strategy profile
-          - entity: select.pylontech_h3x_predictive_dispatch_end_of_horizon_soc
-            name: End-of-horizon SOC
-          - entity: select.pylontech_h3x_predictive_dispatch_discharge_power_mode
-            name: Discharge mode
-          - entity: select.pylontech_h3x_predictive_dispatch_load_forecast_mode
-            name: Load forecast
-          - entity: select.pylontech_h3x_predictive_dispatch_ev_forecast_mode
-            name: EV analysis
-          - entity: switch.pylontech_h3x_predictive_dispatch_ev_discharge_block
-            name: Block battery discharge while EV charging
-          - entity: number.pylontech_h3x_predictive_dispatch_ev_detection_threshold
-            name: EV charging detection threshold
-          - entity: switch.pylontech_h3x_predictive_dispatch_periodic_full_charge
-            name: Periodic full charge
-          - entity: number.pylontech_h3x_predictive_dispatch_forecast_risk_percentile
-            name: Forecast risk (50 expected / 90 worst-case)
-          - entity: number.pylontech_h3x_predictive_dispatch_minimum_action_duration
-            name: Minimum action duration
-
-      - type: entities
-        title: Strategy profile guide
-        show_header_toggle: false
-        entities:
-          - type: attribute
-            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
-            attribute: active_profile_description
-            name: Selected profile
-          - type: attribute
-            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
-            attribute: conservative
-            name: Conservative
-          - type: attribute
-            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
-            attribute: typical
-            name: Typical
-          - type: attribute
-            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
-            attribute: spread
-            name: Spread
-          - type: attribute
-            entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
-            attribute: aggressive
-            name: Aggressive
-
-      - type: heading
-        heading: EV charging policy
-        icon: mdi:car-electric
-
-      - type: grid
-        columns: 3
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_ev_charger_power
-            name: Measured EV charger power
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_battery_supported_load_power
-            name: Home load eligible for battery support
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_ev_discharge_status
-            name: EV discharge policy
-
-      - type: heading
-        heading: Current dispatch components
-        icon: mdi:transmission-tower-import
-
-      - type: grid
-        columns: 2
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power
-            name: Grid charge in active interval (0 = none)
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power
-            name: Measured solar surplus now
-
-      - type: heading
-        heading: Planned actions
-        icon: mdi:calendar-clock
-
-      - type: grid
-        columns: 3
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
-            name: Active or next charge
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
-            name: Active or next discharge
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot
-            name: Periodic full charge
-
-      - type: grid
-        columns: 3
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_planned_charge_energy
-            name: Planned charge
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_planned_discharge_energy
-            name: Planned discharge
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_planned_solar_charge_energy
-            name: Solar charge
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_planned_grid_charge_energy
-            name: Grid charge
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_planned_self_consumption_energy
-            name: Battery to home
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_planned_battery_export_energy
-            name: Battery export
-
-      - type: heading
-        heading: Solar and load forecast
-        icon: mdi:weather-partly-cloudy
-
-      - type: entities
-        title: Forecast configuration and status
-        show_header_toggle: false
-        entities:
-          - entity: select.pylontech_h3x_predictive_dispatch_solar_forecast_source
-            name: Solar forecast source
-          - entity: select.pylontech_h3x_predictive_dispatch_pv_orientation
-            name: PV orientation
-          - entity: number.pylontech_h3x_predictive_dispatch_pv_panel_count
-            name: PV panel count
-          - entity: number.pylontech_h3x_predictive_dispatch_pv_panel_wp_rating
-            name: PV panel Wp
-          - entity: number.pylontech_h3x_predictive_dispatch_pv_inverter_limit
-            name: PV inverter limit
-          - entity: number.pylontech_h3x_predictive_dispatch_solcast_refresh_interval
-            name: Solcast refresh interval
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: solar_forecast_source
-            name: Active forecast source
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: solcast_fetched_at
-            name: Solcast last fetched
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: solcast_interval_count
-            name: Solcast intervals
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: solcast_status
-            name: Solcast status
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: solcast_error
-            name: Solcast last error
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_decision
-            attribute: forecast_power_slot_start
-            name: Next forecast interval starts
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
-            attribute: entity
-            name: Selected SMA PV entity
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
-            attribute: measurement_source
-            name: Live SMA measurement source
-
-      - type: grid
-        columns: 2
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_home_load_power
-            name: Measured home load now
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
-            name: Measured SMA PV now
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_power
-            name: Load forecast, next interval
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power
-            name: Solar forecast, next interval
-
-      - type: grid
-        columns: 2
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_energy
-            name: Forecast load over full horizon
-            vertical: true
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_energy
-            name: Forecast solar over full horizon
-            vertical: true
-
-      - type: history-graph
-        title: Measured home load and SMA PV history
-        hours_to_show: 24
-        entities:
-          - entity: sensor.pylontech_h3x_predictive_dispatch_home_load_power
-            name: Home load
-          - entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
-            name: SMA solar
-
-      - type: history-graph
-        title: Battery power history
-        hours_to_show: 24
-        entities:
-          - entity: sensor.pylontech_h3x_bridge_battery_power
-            name: Battery power
-          - entity: sensor.pylontech_h3x_predictive_dispatch_target_power
-            name: Optimizer target
-
-      - type: history-graph
-        title: Battery SOC history
-        hours_to_show: 48
-        entities:
-          - entity: sensor.pylontech_h3x_bridge_battery_soc
-            name: Battery SOC
-
-      - type: heading
-        heading: Grid and optimizer diagnostics
-        icon: mdi:chart-box-outline
-
-      - type: entities
-        title: Shelly Pro 3EM grid trend and limits
-        show_header_toggle: false
-        entities:
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: input_status
-            name: Shelly input status
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power
-            name: Signed grid power (+import / -export)
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
-            name: Current grid import
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
-            name: Time-weighted 15-minute average
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_trend
-            name: Import trend
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
-            name: Available battery charge headroom
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: measurement_source
-            name: Active Shelly measurement source
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            name: Recorder trend status
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: entity
-            name: Selected Shelly entity
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: raw_state
-            name: Raw Shelly state
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: raw_unit
-            name: Raw Shelly unit
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: normalized_signed_power_w
-            name: Normalized signed source power
-            suffix: W
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: source_last_reported
-            name: Source last reported
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: source_age_seconds
-            name: Source report age
-            suffix: s
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: autodetected_candidates
-            name: Auto-detected Shelly candidates
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: candidate_states
-            name: Candidate source states
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: samples
-            name: Recorder samples in 15-minute window
-          - type: attribute
-            entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
-            attribute: span_minutes
-            name: Recorder sample span
-            suffix: min
-          - entity: select.pylontech_h3x_predictive_dispatch_grid_connection_rating
-            name: Main grid connection rating
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_connection_capacity
-            name: Effective grid connection capacity
-          - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit
-            name: Custom connection limit (custom selection only)
-          - entity: number.pylontech_h3x_predictive_dispatch_grid_export_limit
-            name: Optional lower export cap (0 uses connection rating)
-          - entity: select.pylontech_h3x_predictive_dispatch_battery_circuit_rating
-            name: Dedicated battery circuit rating
-          - entity: sensor.pylontech_h3x_predictive_dispatch_battery_circuit_capacity
-            name: Effective battery circuit capacity
-          - entity: number.pylontech_h3x_predictive_dispatch_battery_circuit_limit
-            name: Custom battery circuit limit (custom selection only)
-
+    - type: heading
+      heading: Settings and control
+      icon: mdi:tune
+    - type: entities
+      title: Battery override and weather reserve
+      show_header_toggle: false
+      entities:
+      - entity: switch.pylontech_h3x_bridge_force_charge
+        name: Force charge (up to 2 hours)
+      - entity: number.pylontech_h3x_bridge_force_charge_rate
+        name: Charge rate (% of rated power)
+      - entity: select.pylontech_h3x_bridge_charge_method
+        name: Charge command method
+      - entity: switch.pylontech_h3x_bridge_weather_reserve
+        name: Natural disaster / KNMI reserve
+      - entity: select.pylontech_h3x_bridge_weather_alert_threshold
+        name: Minimum warning colour
+      - entity: number.pylontech_h3x_bridge_weather_discharge_rate
+        name: Emergency discharge cap (%)
+      - entity: sensor.pylontech_h3x_bridge_control_owner
+        name: Active controller
+      - entity: sensor.pylontech_h3x_bridge_charge_control_status
+        name: Measured response / reason
       - type: button
-        name: Configure Shelly grid source
-        icon: mdi:meter-electric-outline
-        show_state: false
+        name: Connection, Shelly, KNMI and siren settings
+        icon: mdi:cog
         tap_action:
           action: navigate
-          navigation_path: /config/integrations/integration/h3x_predictive_dispatch
-
-      - type: history-graph
-        title: Shelly grid import and charge headroom
-        hours_to_show: 24
-        entities:
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
-            name: Current import
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
-            name: 15-minute average
-          - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
-            name: Charge headroom
-
-      - type: entities
-        title: Arbitrage diagnostics
-        show_header_toggle: false
-        entities:
-          - entity: sensor.pylontech_h3x_predictive_dispatch_price_resolution
-            name: Price resolution
-          - entity: sensor.pylontech_h3x_predictive_dispatch_price_slots_available
-            name: Available price slots
-          - entity: sensor.pylontech_h3x_predictive_dispatch_target_c_rate
-            name: Target C-rate
-          - entity: sensor.pylontech_h3x_predictive_dispatch_planned_equivalent_full_cycles
-            name: Planned equivalent cycles
-          - entity: sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost
-            name: Baseline cost
-          - entity: sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost
-            name: Optimized cost
-          - entity: sensor.pylontech_h3x_predictive_dispatch_modeled_cycle_cost
-            name: Battery wear cost
-          - entity: sensor.pylontech_h3x_predictive_dispatch_modeled_transition_cost
-            name: Action penalties
-
-      - type: entities
-        title: Pylontech H3X controls
-        show_header_toggle: false
-        entities:
-          - entity: select.pylontech_h3x_bridge_ems_mode
-            name: EMS mode
-          - entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
-            name: Charge/discharge reference
-          - entity: number.pylontech_h3x_bridge_charge_limit_soc
-            name: Charge limit SOC
-          - entity: number.pylontech_h3x_bridge_discharge_limit_soc_eps
-            name: Discharge reserve SOC
-
-      - type: heading
-        heading: Price assumptions
-        icon: mdi:currency-eur
-
-      - type: grid
-        columns: 4
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_current_price
-            name: Current import price
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_price_trend
-            name: Price trend
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_estimated_savings
-            name: Horizon value
-          - type: tile
-            entity: sensor.pylontech_h3x_predictive_dispatch_estimated_savings_today
-            name: Today's value
-
-      - type: history-graph
-        title: Dynamic price history
-        hours_to_show: 48
-        entities:
-          - entity: sensor.pylontech_h3x_predictive_dispatch_current_price
-            name: Import price
-
-      - type: entities
-        title: Dutch retail price assumptions
-        show_header_toggle: false
-        entities:
-          - entity: switch.pylontech_h3x_predictive_dispatch_dutch_retail_tariff
-            name: Apply Dutch tax and VAT
-          - entity: number.pylontech_h3x_predictive_dispatch_vat
-            name: VAT
-          - entity: number.pylontech_h3x_predictive_dispatch_energy_tax_per_kwh
-            name: Energy tax excluding VAT
-          - entity: number.pylontech_h3x_predictive_dispatch_supplier_import_markup
-            name: Supplier import markup
-          - entity: number.pylontech_h3x_predictive_dispatch_supplier_export_deduction
-            name: Supplier export deduction
+          navigation_path: /config/integrations/integration/pylontech_h3x_bridge
+    - type: entities
+      title: Optimizer controls
+      show_header_toggle: false
+      entities:
+      - entity: switch.pylontech_h3x_predictive_dispatch_automatic_control
+        name: Automatic control
+      - entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+        name: Strategy profile
+      - entity: select.pylontech_h3x_predictive_dispatch_end_of_horizon_soc
+        name: End-of-horizon SOC
+      - entity: select.pylontech_h3x_predictive_dispatch_discharge_power_mode
+        name: Discharge mode
+      - entity: select.pylontech_h3x_predictive_dispatch_load_forecast_mode
+        name: Load forecast
+      - entity: select.pylontech_h3x_predictive_dispatch_ev_forecast_mode
+        name: EV analysis
+      - entity: switch.pylontech_h3x_predictive_dispatch_ev_discharge_block
+        name: Block battery discharge while EV charging
+      - entity: number.pylontech_h3x_predictive_dispatch_ev_detection_threshold
+        name: EV charging detection threshold
+      - entity: switch.pylontech_h3x_predictive_dispatch_periodic_full_charge
+        name: Periodic full charge
+      - entity: number.pylontech_h3x_predictive_dispatch_forecast_risk_percentile
+        name: Forecast risk (50 expected / 90 worst-case)
+      - entity: number.pylontech_h3x_predictive_dispatch_minimum_action_duration
+        name: Minimum action duration
+    - type: entities
+      title: Strategy profile guide
+      show_header_toggle: false
+      entities:
+      - type: attribute
+        entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+        attribute: active_profile_description
+        name: Selected profile
+      - type: attribute
+        entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+        attribute: conservative
+        name: Conservative
+      - type: attribute
+        entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+        attribute: typical
+        name: Typical
+      - type: attribute
+        entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+        attribute: spread
+        name: Spread
+      - type: attribute
+        entity: select.pylontech_h3x_predictive_dispatch_strategy_profile
+        attribute: aggressive
+        name: Aggressive
+    - type: entities
+      title: Forecast configuration and status
+      show_header_toggle: false
+      entities:
+      - entity: select.pylontech_h3x_predictive_dispatch_solar_forecast_source
+        name: Solar forecast source
+      - entity: select.pylontech_h3x_predictive_dispatch_pv_orientation
+        name: PV orientation
+      - entity: number.pylontech_h3x_predictive_dispatch_pv_panel_count
+        name: PV panel count
+      - entity: number.pylontech_h3x_predictive_dispatch_pv_panel_wp_rating
+        name: PV panel Wp
+      - entity: number.pylontech_h3x_predictive_dispatch_pv_inverter_limit
+        name: PV inverter limit
+      - entity: number.pylontech_h3x_predictive_dispatch_solcast_refresh_interval
+        name: Solcast refresh interval
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision
+        attribute: solar_forecast_source
+        name: Active forecast source
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision
+        attribute: solcast_fetched_at
+        name: Solcast last fetched
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision
+        attribute: solcast_interval_count
+        name: Solcast intervals
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision
+        attribute: solcast_status
+        name: Solcast status
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision
+        attribute: solcast_error
+        name: Solcast last error
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision
+        attribute: forecast_power_slot_start
+        name: Next forecast interval starts
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
+        attribute: entity
+        name: Selected SMA PV entity
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
+        attribute: measurement_source
+        name: Live SMA measurement source
+    - type: entities
+      title: Pylontech H3X controls
+      show_header_toggle: false
+      entities:
+      - entity: select.pylontech_h3x_bridge_ems_mode
+        name: EMS mode
+      - entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
+        name: Charge/discharge reference
+      - entity: number.pylontech_h3x_bridge_charge_limit_soc
+        name: Charge limit SOC
+      - entity: number.pylontech_h3x_bridge_discharge_limit_soc_eps
+        name: Discharge reserve SOC
+  - type: grid
+    column_span: 3
+    cards:
+    - type: heading
+      heading: Usage, savings and power
+      icon: mdi:chart-line
+    - type: heading
+      heading: EV charging policy
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision
+        name: Command
+        icon: mdi:state-machine
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_decision_reason
+        name: Reason
+        icon: mdi:text-box-check
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_target_power
+        name: Target power
+        icon: mdi:flash
+      - type: tile
+        entity: sensor.pylontech_h3x_bridge_battery_soc
+        name: Battery SOC
+        icon: mdi:battery
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_ev_charger_power
+        name: Measured EV charger power
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_battery_supported_load_power
+        name: Home load eligible for battery support
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_ev_discharge_status
+        name: EV discharge policy
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_economic_grid_charge_power
+        name: Grid charge in active interval (0 = none)
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_live_solar_surplus_power
+        name: Measured solar surplus now
+    - type: heading
+      heading: Planned actions
+      icon: mdi:calendar-clock
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_next_charge_slot
+        name: Active or next charge
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_next_discharge_slot
+        name: Active or next discharge
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_periodic_full_charge_slot
+        name: Periodic full charge
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_planned_charge_energy
+        name: Planned charge
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_planned_discharge_energy
+        name: Planned discharge
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_planned_solar_charge_energy
+        name: Solar charge
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_planned_grid_charge_energy
+        name: Grid charge
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_planned_self_consumption_energy
+        name: Battery to home
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_planned_battery_export_energy
+        name: Battery export
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_home_load_power
+        name: Measured home load now
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
+        name: Measured SMA PV now
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_power
+        name: Load forecast, next interval
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_power
+        name: Solar forecast, next interval
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_forecast_load_energy
+        name: Forecast load over full horizon
+        vertical: true
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_forecast_solar_energy
+        name: Forecast solar over full horizon
+        vertical: true
+    - type: history-graph
+      title: Measured home load and SMA PV history
+      hours_to_show: 24
+      entities:
+      - entity: sensor.pylontech_h3x_predictive_dispatch_home_load_power
+        name: Home load
+      - entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
+        name: SMA solar
+    - type: history-graph
+      title: Battery power history
+      hours_to_show: 24
+      entities:
+      - entity: sensor.pylontech_h3x_bridge_battery_power
+        name: Battery power
+      - entity: sensor.pylontech_h3x_predictive_dispatch_target_power
+        name: Optimizer target
+    - type: history-graph
+      title: Battery SOC history
+      hours_to_show: 48
+      entities:
+      - entity: sensor.pylontech_h3x_bridge_battery_soc
+        name: Battery SOC
+    - type: button
+      name: Configure Shelly grid source
+      icon: mdi:meter-electric-outline
+      show_state: false
+      tap_action:
+        action: navigate
+        navigation_path: /config/integrations/integration/h3x_predictive_dispatch
+    - type: history-graph
+      title: Shelly grid import and charge headroom
+      hours_to_show: 24
+      entities:
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
+        name: Current import
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
+        name: 15-minute average
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
+        name: Charge headroom
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_current_price
+        name: Current import price
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_price_trend
+        name: Price trend
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_estimated_savings
+        name: Horizon value
+      - type: tile
+        entity: sensor.pylontech_h3x_predictive_dispatch_estimated_savings_today
+        name: Today's value
+    - type: history-graph
+      title: Dynamic price history
+      hours_to_show: 48
+      entities:
+      - entity: sensor.pylontech_h3x_predictive_dispatch_current_price
+        name: Import price
+  - type: grid
+    column_span: 3
+    cards:
+    - type: heading
+      heading: Statistics and diagnostics
+      icon: mdi:table-search
+    - type: heading
+      heading: Price assumptions
+    - type: entities
+      title: Shelly Pro 3EM grid trend and limits
+      show_header_toggle: false
+      entities:
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: input_status
+        name: Shelly input status
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_net_power
+        name: Signed grid power (+import / -export)
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_power
+        name: Current grid import
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_15_minute_average
+        name: Time-weighted 15-minute average
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_import_trend
+        name: Import trend
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_charge_headroom
+        name: Available battery charge headroom
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: measurement_source
+        name: Active Shelly measurement source
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        name: Recorder trend status
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: entity
+        name: Selected Shelly entity
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: raw_state
+        name: Raw Shelly state
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: raw_unit
+        name: Raw Shelly unit
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: normalized_signed_power_w
+        name: Normalized signed source power
+        suffix: W
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: source_last_reported
+        name: Source last reported
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: source_age_seconds
+        name: Source report age
+        suffix: s
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: autodetected_candidates
+        name: Auto-detected Shelly candidates
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: candidate_states
+        name: Candidate source states
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: samples
+        name: Recorder samples in 15-minute window
+      - type: attribute
+        entity: sensor.pylontech_h3x_predictive_dispatch_grid_diagnostics_status
+        attribute: span_minutes
+        name: Recorder sample span
+        suffix: min
+      - entity: select.pylontech_h3x_predictive_dispatch_grid_connection_rating
+        name: Main grid connection rating
+      - entity: sensor.pylontech_h3x_predictive_dispatch_grid_connection_capacity
+        name: Effective grid connection capacity
+      - entity: number.pylontech_h3x_predictive_dispatch_grid_import_limit
+        name: Custom connection limit (custom selection only)
+      - entity: number.pylontech_h3x_predictive_dispatch_grid_export_limit
+        name: Optional lower export cap (0 uses connection rating)
+      - entity: select.pylontech_h3x_predictive_dispatch_battery_circuit_rating
+        name: Dedicated battery circuit rating
+      - entity: sensor.pylontech_h3x_predictive_dispatch_battery_circuit_capacity
+        name: Effective battery circuit capacity
+      - entity: number.pylontech_h3x_predictive_dispatch_battery_circuit_limit
+        name: Custom battery circuit limit (custom selection only)
+    - type: entities
+      title: Arbitrage diagnostics
+      show_header_toggle: false
+      entities:
+      - entity: sensor.pylontech_h3x_predictive_dispatch_price_resolution
+        name: Price resolution
+      - entity: sensor.pylontech_h3x_predictive_dispatch_price_slots_available
+        name: Available price slots
+      - entity: sensor.pylontech_h3x_predictive_dispatch_target_c_rate
+        name: Target C-rate
+      - entity: sensor.pylontech_h3x_predictive_dispatch_planned_equivalent_full_cycles
+        name: Planned equivalent cycles
+      - entity: sensor.pylontech_h3x_predictive_dispatch_baseline_grid_cost
+        name: Baseline cost
+      - entity: sensor.pylontech_h3x_predictive_dispatch_optimized_grid_cost
+        name: Optimized cost
+      - entity: sensor.pylontech_h3x_predictive_dispatch_modeled_cycle_cost
+        name: Battery wear cost
+      - entity: sensor.pylontech_h3x_predictive_dispatch_modeled_transition_cost
+        name: Action penalties
+    - type: entities
+      title: Dutch retail price assumptions
+      show_header_toggle: false
+      entities:
+      - entity: switch.pylontech_h3x_predictive_dispatch_dutch_retail_tariff
+        name: Apply Dutch tax and VAT
+      - entity: number.pylontech_h3x_predictive_dispatch_vat
+        name: VAT
+      - entity: number.pylontech_h3x_predictive_dispatch_energy_tax_per_kwh
+        name: Energy tax excluding VAT
+      - entity: number.pylontech_h3x_predictive_dispatch_supplier_import_markup
+        name: Supplier import markup
+      - entity: number.pylontech_h3x_predictive_dispatch_supplier_export_deduction
+        name: Supplier export deduction

@@ -2790,6 +2790,20 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _apply_decision(self, decision: Decision) -> None:
         """Apply the control decision through Home Assistant entity services."""
+        from homeassistant.helpers import entity_registry as er
+        registry = er.async_get(self.hass)
+        entity = registry.async_get(str(self._option(CONF_POWER_REF_ENTITY)))
+        bridge = self.hass.data.get("pylontech_h3x_bridge", {}).get(
+            entity.config_entry_id if entity else ""
+        )
+        override = getattr(bridge, "override", None)
+        if override and override.active:
+            decision.applied = False
+            decision.reason = f"{decision.reason}; bridge {override.diagnostics()['control_owner']} override active"
+            self._last_power_percent = None
+            self._last_ems_mode = None
+            self._last_applied_action = None
+            return
         try:
             self._stabilize_runtime_action(decision)
             await self._set_soc_limits(decision)

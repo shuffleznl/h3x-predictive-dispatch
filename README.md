@@ -14,12 +14,18 @@ This repository contains one HACS integration:
 | --- | --- | --- |
 | Pylontech H3X Predictive Dispatch | `h3x_predictive_dispatch` | Ingest Nord Pool prices, compute battery arbitrage decisions, and optionally control Pylontech H3X Bridge entities. |
 
+## Release 0.2.12: Manual And Weather Overrides
+
+Use [H3X Bridge 0.4.0](https://github.com/shuffleznl/h3x-bridge) for the new force-charge rate/switch, KNMI warning-colour selector, emergency discharge cap and measured command status. Configure the bridge with your signed Shelly meter, local KNMI/NL Weather warning sensor and optional siren. Force charge ends after two hours or at its SOC target. A warning at/above the selected yellow/orange/red threshold charges to 100%, then limits discharge and preserves 90% SOC. The bridge owns control during these overrides; the optimizer pauses its writes and resumes when ownership returns to automatic.
+
+The packaged dashboard now uses native Home Assistant sections: settings and overrides at the top, usage/savings/power histories in the middle, and statistics/diagnostics below. No custom frontend cards are required. Refresh an imported dashboard from `custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml` after the HACS update; Home Assistant does not overwrite a dashboard imported into storage mode. A YAML-mode dashboard referencing the packaged file follows package updates automatically.
+
 ## Requirements
 
-- Home Assistant `2024.12.0` or newer.
+- Home Assistant `2025.3.0` or newer (validated with `2026.10.4`).
 - HACS.
 - Nord Pool integration configured in Home Assistant.
-- Pylontech H3X Bridge `0.3.9` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
+- Pylontech H3X Bridge `0.4.0` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
 - Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors, an SMA Sunny Boy PV power sensor, and a Solcast rooftop forecast API key.
 
 ## Predictive Dispatch Architecture

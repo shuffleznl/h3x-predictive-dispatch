@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
 BRIDGE_DOMAIN = "pylontech_h3x_bridge"
-MIN_BRIDGE_VERSION = (0, 3, 9)
+MIN_BRIDGE_VERSION = (0, 4, 0)
 
 DEFAULT_ENTITY_CONTRACT = {
     "DEFAULT_EMS_MODE_ENTITY": "select.pylontech_h3x_bridge_ems_mode",
@@ -39,6 +39,14 @@ DEFAULT_ENTITY_CONTRACT = {
 }
 
 DASHBOARD_BRIDGE_ENTITIES = {
+    "sensor.pylontech_h3x_bridge_control_owner",
+    "sensor.pylontech_h3x_bridge_charge_control_status",
+    "number.pylontech_h3x_bridge_force_charge_rate",
+    "number.pylontech_h3x_bridge_weather_discharge_rate",
+    "select.pylontech_h3x_bridge_charge_method",
+    "select.pylontech_h3x_bridge_weather_alert_threshold",
+    "switch.pylontech_h3x_bridge_force_charge",
+    "switch.pylontech_h3x_bridge_weather_reserve",
     "sensor.pylontech_h3x_bridge_battery_power",
     "sensor.pylontech_h3x_bridge_battery_soc",
     "select.pylontech_h3x_bridge_ems_mode",
@@ -119,7 +127,7 @@ def validate_predictive_contract() -> None:
         raise AssertionError("repository and packaged predictive dashboards differ")
     referenced = set(
         re.findall(
-            r"(?:sensor|number|select)\.pylontech_h3x_bridge_[a-z0-9_]+",
+            r"(?:sensor|number|select|switch)\.pylontech_h3x_bridge_[a-z0-9_]+",
             dashboard,
         )
     )
@@ -133,7 +141,7 @@ def validate_predictive_contract() -> None:
     require_tokens(
         readme,
         (
-            "H3X Bridge `0.3.9` or newer",
+            "H3X Bridge `0.4.0` or newer",
             "https://github.com/shuffleznl/h3x-bridge",
         ),
         "predictive README",
@@ -151,7 +159,7 @@ def validate_local_bridge() -> None:
     if manifest.get("domain") != BRIDGE_DOMAIN:
         raise AssertionError("sibling bridge has an incompatible domain")
     if version_tuple(str(manifest.get("version", "0"))) < MIN_BRIDGE_VERSION:
-        raise AssertionError("sibling bridge must be version 0.3.9 or newer")
+        raise AssertionError("sibling bridge must be version 0.4.0 or newer")
 
     require_tokens(
         read(bridge / "number.py"),
