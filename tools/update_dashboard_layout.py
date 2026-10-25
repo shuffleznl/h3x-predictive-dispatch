@@ -21,13 +21,16 @@ def override_controls():
                 ("select", "weather_alert_threshold", "Minimum warning colour"),
                 ("number", "weather_discharge_rate", "Emergency discharge cap (%)"),
                 ("sensor", "control_owner", "Active controller"),
-                ("sensor", "charge_control_status", "Measured response / reason"),
+                ("sensor", "charge_control_status", "Control intent / pause reason"),
             )
         ]
         + [
             {"type": "attribute", "entity": f"{domain}.pylontech_h3x_bridge_{key}",
              "attribute": attribute, "name": name}
             for domain, key, attribute, name in (
+                ("sensor", "charge_control_status", "charging_response", "Measured charging response"),
+                ("sensor", "charge_control_status", "last_rejected_entity_id", "Last competing entity"),
+                ("sensor", "charge_control_status", "last_control_error", "Last control failure"),
                 ("sensor", "charge_control_status", "charge_headroom_w", "Available charging headroom (W)"),
                 ("sensor", "charge_control_status", "grid_without_battery_w", "Grid load excluding battery (W)"),
                 ("number", "charge_discharge_power_ref", "readback_raw", "Inverter reference (- = charge, raw 0.1%)"),

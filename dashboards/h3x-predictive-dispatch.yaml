@@ -31,7 +31,19 @@ views:
       - entity: sensor.pylontech_h3x_bridge_control_owner
         name: Active controller
       - entity: sensor.pylontech_h3x_bridge_charge_control_status
-        name: Measured response / reason
+        name: Control intent / pause reason
+      - type: attribute
+        entity: sensor.pylontech_h3x_bridge_charge_control_status
+        attribute: charging_response
+        name: Measured charging response
+      - type: attribute
+        entity: sensor.pylontech_h3x_bridge_charge_control_status
+        attribute: last_rejected_entity_id
+        name: Last competing entity
+      - type: attribute
+        entity: sensor.pylontech_h3x_bridge_charge_control_status
+        attribute: last_control_error
+        name: Last control failure
       - type: attribute
         entity: sensor.pylontech_h3x_bridge_charge_control_status
         attribute: charge_headroom_w

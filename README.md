@@ -14,6 +14,12 @@ This repository contains one HACS integration:
 | --- | --- | --- |
 | Pylontech H3X Predictive Dispatch | `h3x_predictive_dispatch` | Ingest Nord Pool prices, compute battery arbitrage decisions, and optionally control Pylontech H3X Bridge entities. |
 
+## Release 0.2.14: Force-Charge Takeover
+
+Requires H3X Bridge `0.4.2` or newer. Recheck ownership before and after every awaited EMS/SOC/power service call, including a takeover inside service dispatch. Yield to manual charging or weather reserve without recording an expected priority change as a failed economic dispatch, and clear cached action/power/mode state before resuming. Genuine service errors still surface when no override owns control.
+
+The dashboard separates control intent from measured charging confirmation and shows the last competing entity and the actual Modbus failure. Confirmation requires two successive Charging-status and negative-power observations; it is not a claim that requested wattage is being delivered. Both dashboard copies and real Home Assistant service/attribute checks are included in CI. No physical inverter was connected during validation.
+
 ## Release 0.2.13: Bridge Controls And Charge Diagnostics
 
 Requires H3X Bridge `0.4.1` or newer. The bridge now pins and migrates the eight override/weather control IDs so renamed devices do not cause "entity not found". The dashboard adds available charge headroom, grid load excluding the battery, raw signed register reference and read-back verification. Negative reference values charge: `-10%` in Home Assistant is raw `-100` (`0xFF9C`) at register 40901. A zero permitted command is explicitly reported as paused by the bridge.
@@ -29,7 +35,7 @@ The packaged dashboard now uses native Home Assistant sections: settings and ove
 - Home Assistant `2025.3.0` or newer (validated with `2026.10.4`).
 - HACS.
 - Nord Pool integration configured in Home Assistant.
-- Pylontech H3X Bridge `0.4.1` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
+- Pylontech H3X Bridge `0.4.2` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
 - Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors, an SMA Sunny Boy PV power sensor, and a Solcast rooftop forecast API key.
 
 ## Predictive Dispatch Architecture

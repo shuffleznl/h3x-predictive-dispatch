@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "custom_components" / "h3x_predictive_dispatch"
 BRIDGE_DOMAIN = "pylontech_h3x_bridge"
-MIN_BRIDGE_VERSION = (0, 4, 1)
+MIN_BRIDGE_VERSION = (0, 4, 2)
 
 DEFAULT_ENTITY_CONTRACT = {
     "DEFAULT_EMS_MODE_ENTITY": "select.pylontech_h3x_bridge_ems_mode",
@@ -141,7 +141,7 @@ def validate_predictive_contract() -> None:
     require_tokens(
         readme,
         (
-            "H3X Bridge `0.4.1` or newer",
+            "H3X Bridge `0.4.2` or newer",
             "https://github.com/shuffleznl/h3x-bridge",
         ),
         "predictive README",
@@ -159,7 +159,7 @@ def validate_local_bridge() -> None:
     if manifest.get("domain") != BRIDGE_DOMAIN:
         raise AssertionError("sibling bridge has an incompatible domain")
     if version_tuple(str(manifest.get("version", "0"))) < MIN_BRIDGE_VERSION:
-        raise AssertionError("sibling bridge must be version 0.4.1 or newer")
+        raise AssertionError("sibling bridge must be version 0.4.2 or newer")
 
     require_tokens(
         read(bridge / "number.py"),

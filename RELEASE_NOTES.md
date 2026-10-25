@@ -1,10 +1,10 @@
-# Predictive Dispatch 0.2.13
+# Predictive Dispatch 0.2.14
 
-- Require H3X Bridge 0.4.1 for stable override/weather dashboard IDs and actionable force-charge errors.
-- Show available charging headroom, grid load excluding the battery, signed register read-back and last-command verification in repository and HACS-packaged dashboards.
-- Retain the native controls-first layout and existing dispatch strategy; no sign reversal or optimizer behavior change.
-- Validate both dashboard copies and the bridge entity contract. The sibling bridge runtime suite registers actual Home Assistant entities and checks every bridge attribute referenced in both controller dashboards before and after a charge command.
+- Recheck bridge ownership before and after each awaited EMS/SOC/power service call, including a takeover inside service dispatch.
+- Treat manual/weather preemption as an expected pause, reset action/power/mode caches and preserve genuine failures when no override is active.
+- Separate control intent from measured charging response on both dashboard copies. Add the last competing entity and actual Modbus-command failure.
+- Require H3X Bridge 0.4.2 for these diagnostics. CI exercises real Home Assistant entity services, authenticated manual actions, takeover races and dashboard attributes.
 
-Requires H3X Bridge 0.4.1 and Home Assistant 2025.3 or newer. Update the bridge and restart Home Assistant first. Refresh storage-mode dashboards from `custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`; YAML mode referencing that file follows HACS package updates. Explicitly customized bridge IDs require matching dashboard YAML.
+Requires H3X Bridge 0.4.2 and Home Assistant 2025.3 or newer. Update both integrations and restart Home Assistant. Refresh storage-mode dashboards from `custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml`; YAML mode referencing that file follows HACS package updates. Existing configuration and entity IDs are preserved.
 
 Register verification is not proof of physical charging; check measured battery power/status. No physical inverter was connected during validation.
