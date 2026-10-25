@@ -25,6 +25,16 @@ def override_controls():
             )
         ]
         + [
+            {"type": "attribute", "entity": f"{domain}.pylontech_h3x_bridge_{key}",
+             "attribute": attribute, "name": name}
+            for domain, key, attribute, name in (
+                ("sensor", "charge_control_status", "charge_headroom_w", "Available charging headroom (W)"),
+                ("sensor", "charge_control_status", "grid_without_battery_w", "Grid load excluding battery (W)"),
+                ("number", "charge_discharge_power_ref", "readback_raw", "Inverter reference (- = charge, raw 0.1%)"),
+                ("number", "charge_discharge_power_ref", "readback_matches", "Register command verified"),
+            )
+        ]
+        + [
             {
                 "type": "button",
                 "name": "Connection, Shelly, KNMI and siren settings",

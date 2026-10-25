@@ -32,6 +32,22 @@ views:
         name: Active controller
       - entity: sensor.pylontech_h3x_bridge_charge_control_status
         name: Measured response / reason
+      - type: attribute
+        entity: sensor.pylontech_h3x_bridge_charge_control_status
+        attribute: charge_headroom_w
+        name: Available charging headroom (W)
+      - type: attribute
+        entity: sensor.pylontech_h3x_bridge_charge_control_status
+        attribute: grid_without_battery_w
+        name: Grid load excluding battery (W)
+      - type: attribute
+        entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
+        attribute: readback_raw
+        name: Inverter reference (- = charge, raw 0.1%)
+      - type: attribute
+        entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
+        attribute: readback_matches
+        name: Register command verified
       - type: button
         name: Connection, Shelly, KNMI and siren settings
         icon: mdi:cog
