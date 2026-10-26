@@ -19,7 +19,7 @@ views:
       - entity: switch.pylontech_h3x_bridge_force_charge
         name: Force charge (up to 2 hours)
       - entity: number.pylontech_h3x_bridge_force_charge_rate
-        name: Charge rate (% of rated power)
+        name: Requested charge rate (% of rated power)
       - entity: select.pylontech_h3x_bridge_charge_method
         name: Charge command method
       - entity: switch.pylontech_h3x_bridge_weather_reserve
@@ -35,7 +35,7 @@ views:
       - type: attribute
         entity: sensor.pylontech_h3x_bridge_charge_control_status
         attribute: charging_response
-        name: Measured charging response
+        name: PCS charge-direction confirmation
       - type: attribute
         entity: sensor.pylontech_h3x_bridge_charge_control_status
         attribute: last_rejected_entity_id
@@ -60,6 +60,18 @@ views:
         entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
         attribute: readback_matches
         name: Register command verified
+      - entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
+        name: Signed reference (%; negative charges)
+      - entity: sensor.pylontech_h3x_bridge_battery_power
+        name: Measured battery power (W)
+      - type: attribute
+        entity: sensor.pylontech_h3x_bridge_charge_control_status
+        attribute: slot_clock_offset_seconds
+        name: Inverter clock minus HA local (seconds)
+      - type: attribute
+        entity: sensor.pylontech_h3x_bridge_charge_control_status
+        attribute: slot_readback_matches
+        name: Time-slot registers verified
       - type: button
         name: Connection, Shelly, KNMI and siren settings
         icon: mdi:cog

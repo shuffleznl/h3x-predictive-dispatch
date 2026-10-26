@@ -14,6 +14,27 @@ This repository contains one HACS integration:
 | --- | --- | --- |
 | Pylontech H3X Predictive Dispatch | `h3x_predictive_dispatch` | Ingest Nord Pool prices, compute battery arbitrage decisions, and optionally control Pylontech H3X Bridge entities. |
 
+## Release 0.2.15: Charge Verification
+
+Move the pure dynamic-programming optimizer off Home Assistant's event loop.
+The previous synchronous solve could delay Modbus callbacks, including while
+automatic control was off. HA state reads, limits and device service calls remain
+on the event loop. Discard results if settings change while solving, and recheck
+SOC, temperature, dedicated EV charging state, current grid headroom and price
+slot expiry before applying a result. This fixes an event-loop blocking defect;
+it does not establish that every observed device timeout had that cause.
+
+Use H3X Bridge `0.4.3` or newer for selectable slot clock basis and
+verified slot read-back. Both dashboards now distinguish the requested positive
+charge rate, signed inverter reference and measured battery watts, and display
+the last slot clock offset and register verification. A correct reference or
+verified slot does not by itself prove that the battery delivered the requested
+power. Live tests found an approximately one-hour inverter/HA clock difference;
+the bridge reports this difference, preserves the existing local-time basis by
+default, and offers inverter RTC alignment for commissioning. It does not rewrite
+the device clock by default. Storage-mode dashboards still need reimporting after updating;
+YAML-mode dashboards referencing the packaged file follow package updates.
+
 ## Release 0.2.14: Force-Charge Takeover
 
 Requires H3X Bridge `0.4.2` or newer. Recheck ownership before and after every awaited EMS/SOC/power service call, including a takeover inside service dispatch. Yield to manual charging or weather reserve without recording an expected priority change as a failed economic dispatch, and clear cached action/power/mode state before resuming. Genuine service errors still surface when no override owns control.
@@ -35,7 +56,7 @@ The packaged dashboard now uses native Home Assistant sections: settings and ove
 - Home Assistant `2025.3.0` or newer (validated with `2026.10.4`).
 - HACS.
 - Nord Pool integration configured in Home Assistant.
-- Pylontech H3X Bridge `0.4.2` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
+- Pylontech H3X Bridge `0.4.3` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
 - Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors, an SMA Sunny Boy PV power sensor, and a Solcast rooftop forecast API key.
 
 ## Predictive Dispatch Architecture

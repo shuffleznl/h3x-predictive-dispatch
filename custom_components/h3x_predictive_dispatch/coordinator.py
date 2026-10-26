@@ -438,7 +438,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._async_refresh_history()
             await self._async_refresh_grid_import_trend()
             await self._async_refresh_solcast_forecast()
-            decision = self._compute_decision(slots)
+            decision = await self._compute_decision(slots)
         except Exception as err:  # pylint: disable=broad-except
             LOGGER.exception("Failed to compute arbitrage decision")
             decision = Decision(
@@ -910,7 +910,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return str(currency).upper()
         return "EUR"
 
-    def _compute_decision(self, slots: list[PriceSlot]) -> Decision:
+    async def _compute_decision(self, slots: list[PriceSlot]) -> Decision:
         """Compute the current best charge/discharge action."""
         now = dt_util.utcnow()
         future_slots = [slot for slot in slots if slot.end > now]
@@ -1011,7 +1011,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._solar_forecast_for_slots(optimization_slots, solar_power_w)
         )
         solar_forecast_w = [band.p50_w for band in solar_forecast]
-        decision = self._run_predictive_optimizer(
+        decision = await self._run_predictive_optimizer(
             future_slots=optimization_slots,
             current_energy=current_energy,
             min_energy=min_energy,
@@ -1028,6 +1028,47 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             block_ev_discharge=ev_discharge_block_enabled,
             ev_threshold_w=ev_threshold_w,
         )
+
+        # Telemetry can advance while the pure optimizer runs off-loop.
+        soc = self._state_float(str(self._option(CONF_SOC_ENTITY)))
+        bms_temp = self._state_float(str(self._option(CONF_BMS_TEMP_ENTITY)))
+        charge_allowed, discharge_allowed, temp_reason = self._temperature_permissions(bms_temp)
+        if soc is None:
+            return self._idle_from(decision, "battery SOC entity unavailable after optimization")
+        if decision.action == "charge" and soc >= max_soc:
+            return self._idle_from(decision, "charge SOC limit reached during optimization")
+        if decision.action == "discharge" and soc <= floor_soc:
+            return self._idle_from(decision, "discharge SOC floor reached during optimization")
+        if future_slots[0].end <= dt_util.utcnow():
+            self.hass.async_create_task(self.async_request_refresh())
+            expired = self._idle_from(decision, "price slot expired during optimization; refreshing")
+            expired.action = "failsafe"
+            return expired
+        load_power_w, load_source = self._home_load_power_w()
+        solar_power_w, solar_entity, solar_measurement_source = self._solar_power_measurement()
+        if ev_mode == "sensor":
+            ev_sensor_power_w = self._positive_power_state_w(ev_power_entity)
+            if ev_discharge_block_enabled and ev_sensor_power_w is None and decision.action == "discharge":
+                return self._idle_from(decision, "EV charging state unavailable after optimization")
+            active_ev_power_w = ev_sensor_power_w
+            ev_charging_active = active_ev_power_w is not None and active_ev_power_w >= ev_threshold_w
+            ev_discharge_block_active = ev_discharge_block_enabled and ev_charging_active
+        excluded_ev_power_w = (
+            min(max(active_ev_power_w or 0.0, 0.0), max(load_power_w or 0.0, 0.0))
+            if ev_discharge_block_active and load_power_w is not None else 0.0
+        )
+        battery_supported_load_power_w = (
+            max(load_power_w - excluded_ev_power_w, 0.0) if load_power_w is not None else None
+        )
+        plan = decision.attributes.get("dispatch_plan", [])
+        if decision.action == "charge" and plan and plan[0].get("intent") == "solar_storage":
+            decision.target_power_w = live_solar_charge_target_w(
+                decision.target_power_w, solar_power_w, load_power_w,
+                economic_grid_charge_w=decision.economic_grid_charge_power_w,
+            )
+            plan[0]["live_target_power_w"] = round(decision.target_power_w, 1)
+            if decision.target_power_w < float(self._option(CONF_MIN_ACTIVE_POWER_W)):
+                return self._idle_from(decision, "solar storage planned, but live surplus dropped during optimization")
 
         current_slot = future_slots[0]
         decision.soc = soc
@@ -2161,7 +2202,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             legacy_sell_adder_per_kwh=float(self._option(CONF_SELL_COST_ADDER)),
         )
 
-    def _run_predictive_optimizer(
+    async def _run_predictive_optimizer(
         self,
         *,
         future_slots: list[PriceSlot],
@@ -2181,6 +2222,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ev_threshold_w: float,
     ) -> Decision:
         """Run the modular forecast-aware model-predictive optimizer."""
+        option_snapshot = (dict(self.entry.data), dict(self.entry.options))
         tariff = self._tariff_settings()
         optimizer_slots: list[OptimizerSlot] = []
         for index, slot in enumerate(future_slots):
@@ -2247,7 +2289,11 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             charge_allowed=charge_allowed,
             discharge_allowed=discharge_allowed,
         )
-        result = self._predictive_optimizer.optimize(optimizer_slots, settings)
+        result = await self.hass.async_add_executor_job(
+            self._predictive_optimizer.optimize, optimizer_slots, settings
+        )
+        if option_snapshot != (dict(self.entry.data), dict(self.entry.options)):
+            return Decision(action="failsafe", reason="optimizer settings changed during computation; awaiting refresh")
         if not result.schedule:
             return Decision(action="idle", reason=result.reason)
 
