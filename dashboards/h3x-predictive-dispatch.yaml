@@ -12,6 +12,38 @@ views:
     - type: heading
       heading: Settings and control
       icon: mdi:tune
+    - type: conditional
+      conditions:
+      - condition: state
+        entity: sensor.h3x_modbus_translator_profile
+        state: SDM630
+      card:
+        type: entities
+        title: Native meter translator (optional)
+        show_header_toggle: false
+        entities:
+        - entity: sensor.h3x_modbus_translator_status
+          name: Translator status (not inverter acceptance)
+        - entity: binary_sensor.h3x_modbus_translator_source_online
+          name: Shelly source fresh
+        - entity: binary_sensor.h3x_modbus_translator_server_listening
+          name: SDM630 TCP listener
+        - entity: binary_sensor.h3x_modbus_translator_client_active
+          name: Recent meter client requests
+        - entity: sensor.h3x_modbus_translator_grid_power
+          name: Translated signed grid power (W)
+        - entity: sensor.h3x_modbus_translator_data_age
+          name: Source age (seconds)
+        - type: attribute
+          entity: sensor.h3x_modbus_translator_profile
+          attribute: physical_h3x_meter_connection
+          name: Required H3X meter connection
+        - type: button
+          name: Configure translator
+          icon: mdi:cog
+          tap_action:
+            action: navigate
+            navigation_path: /config/integrations/integration/h3x_modbus_translator
     - type: entities
       title: Battery override and weather reserve
       show_header_toggle: false

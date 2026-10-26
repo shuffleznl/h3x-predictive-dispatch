@@ -116,6 +116,42 @@ def main() -> None:
         raise AssertionError("HACS-packaged predictive dashboard is missing")
     if PACKAGED_DASHBOARD.read_text(encoding="utf-8") != source:
         raise AssertionError("repository and HACS-packaged dashboards differ")
+    translator_entities = {
+        "sensor.h3x_modbus_translator_profile",
+        "sensor.h3x_modbus_translator_status",
+        "sensor.h3x_modbus_translator_grid_power",
+        "sensor.h3x_modbus_translator_data_age",
+        "binary_sensor.h3x_modbus_translator_source_online",
+        "binary_sensor.h3x_modbus_translator_server_listening",
+        "binary_sensor.h3x_modbus_translator_client_active",
+    }
+
+    def validate_optional_translator(value: object, guarded: bool = False) -> None:
+        """Keep optional entities hidden on installations without the translator."""
+        if isinstance(value, list):
+            for child in value:
+                validate_optional_translator(child, guarded)
+        if not isinstance(value, dict):
+            return
+        if value.get("type") == "conditional" and {
+            "condition": "state",
+            "entity": "sensor.h3x_modbus_translator_profile",
+            "state": "SDM630",
+        } in value.get("conditions", []):
+            guarded = True
+        entity = value.get("entity", "")
+        if isinstance(entity, str) and ".h3x_modbus_translator_" in entity:
+            if not guarded or entity not in translator_entities:
+                raise AssertionError(f"unguarded or unknown translator entity: {entity}")
+            if value.get("type") == "attribute" and (
+                entity != "sensor.h3x_modbus_translator_profile"
+                or value.get("attribute") != "physical_h3x_meter_connection"
+            ):
+                raise AssertionError("unknown translator attribute")
+        for child in value.values():
+            validate_optional_translator(child, guarded)
+
+    validate_optional_translator(dashboard)
     if "Shelly Pro 3EM grid trend and limits" not in source:
         raise AssertionError("dashboard must identify the Shelly grid source")
     required = (

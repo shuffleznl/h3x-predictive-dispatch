@@ -14,6 +14,18 @@ This repository contains one HACS integration:
 | --- | --- | --- |
 | Pylontech H3X Predictive Dispatch | `h3x_predictive_dispatch` | Ingest Nord Pool prices, compute battery arbitrage decisions, and optionally control Pylontech H3X Bridge entities. |
 
+## Release 0.2.16: Optional Meter Translator Dashboard
+
+Both dashboard copies now include a conditional panel for the separate
+[H3X Modbus Translator](https://github.com/shuffleznl/h3x-modbus-translator)
+integration. It is hidden when the translator is not installed and shows actual
+source freshness, server/client activity, translated watts and source age when
+present. No optimizer/control behavior changed. The documented H3X meter port
+requires an RS485 reverse RTU-to-TCP gateway; a TCP translator alone cannot connect
+to it. No hardware ingestion or charging fix is claimed. Storage-mode dashboards
+need reimporting; YAML-mode dashboards referencing the HACS-packaged file follow
+the package update. Translator entity IDs and attributes are contract-tested.
+
 ## Release 0.2.15: Charge Verification
 
 Move the pure dynamic-programming optimizer off Home Assistant's event loop.

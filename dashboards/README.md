@@ -15,6 +15,14 @@ It shows:
 - load forecast p10/p50/p90, solar, net-grid, price, dispatch, battery-power, and SOC charts,
 - battery power and state-of-charge over time,
 - Pylontech H3X Bridge controls and diagnostics.
+- Optional H3X Modbus Translator health/power panel, hidden unless installed.
+
+The translator is a separate optional HACS repository:
+`https://github.com/shuffleznl/h3x-modbus-translator`. It serves an SDM630 TCP
+register subset from Shelly readings. The H3X's native meter port is RS485 and
+still needs a reverse RTU-to-TCP gateway; the panel does not imply physical
+inverter acceptance. It does not change the optimizer's Shelly source or battery
+control. The translator also packages its own native-card dashboard.
 
 ## Requirements
 
