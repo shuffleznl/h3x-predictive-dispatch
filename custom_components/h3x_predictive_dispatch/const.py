@@ -129,6 +129,8 @@ CONF_PEAK_EXTRA_MARGIN = "peak_extra_margin_per_kwh"
 CONF_MAX_CHARGE_C_RATE = "max_charge_c_rate"
 CONF_MAX_DISCHARGE_C_RATE = "max_discharge_c_rate"
 CONF_INVERTER_FULL_SCALE_POWER_W = "inverter_full_scale_power_w"
+CONF_INVERTER_RATED_POWER_ENTITY = "inverter_rated_power_entity"
+CONF_BATTERY_POWER_ENTITY = "battery_power_entity"
 CONF_MIN_ACTIVE_POWER_W = "min_active_power_w"
 CONF_GRID_CONNECTION_RATING = "grid_connection_rating"
 CONF_GRID_IMPORT_LIMIT_W = "grid_import_limit_w"
@@ -158,10 +160,10 @@ DEFAULT_STRATEGY_PROFILE = "typical"
 DEFAULT_LOAD_FORECAST_MODE = "historical"
 DEFAULT_EV_FORECAST_MODE = "detect"
 
-DEFAULT_EMS_MODE_ENTITY = "select.pylontech_h3x_bridge_ems_mode"
-DEFAULT_POWER_REF_ENTITY = "number.pylontech_h3x_bridge_charge_discharge_power_ref"
-DEFAULT_SOC_ENTITY = "sensor.pylontech_h3x_bridge_battery_soc"
-DEFAULT_LOAD_POWER_ENTITY = "sensor.pylontech_h3x_bridge_load_power"
+DEFAULT_EMS_MODE_ENTITY = ""
+DEFAULT_POWER_REF_ENTITY = ""
+DEFAULT_SOC_ENTITY = ""
+DEFAULT_LOAD_POWER_ENTITY = ""
 DEFAULT_SHELLY_TOTAL_POWER_ENTITY = ""
 DEFAULT_SHELLY_PHASE_A_POWER_ENTITY = ""
 DEFAULT_SHELLY_PHASE_B_POWER_ENTITY = ""
@@ -173,20 +175,12 @@ DEFAULT_PV_ORIENTATION = "S"
 DEFAULT_PV_PANEL_COUNT = 0.0
 DEFAULT_PV_PANEL_WP = 400.0
 DEFAULT_PV_INVERTER_LIMIT_W = 2000.0
-DEFAULT_BATTERY_MODULE_COUNT_ENTITY = (
-    "sensor.pylontech_h3x_bridge_battery_module_count"
-)
-DEFAULT_BATTERY_SYSTEM_CAPACITY_ENTITY = (
-    "sensor.pylontech_h3x_bridge_battery_system_capacity"
-)
-DEFAULT_BATTERY_USABLE_CAPACITY_ENTITY = (
-    "sensor.pylontech_h3x_bridge_battery_usable_capacity"
-)
-DEFAULT_BMS_TEMP_ENTITY = "sensor.pylontech_h3x_bridge_bms_temperature"
-DEFAULT_CHARGE_LIMIT_SOC_ENTITY = "number.pylontech_h3x_bridge_charge_limit_soc"
-DEFAULT_DISCHARGE_LIMIT_SOC_ENTITY = (
-    "number.pylontech_h3x_bridge_discharge_limit_soc_eps"
-)
+DEFAULT_BATTERY_MODULE_COUNT_ENTITY = ""
+DEFAULT_BATTERY_SYSTEM_CAPACITY_ENTITY = ""
+DEFAULT_BATTERY_USABLE_CAPACITY_ENTITY = ""
+DEFAULT_BMS_TEMP_ENTITY = ""
+DEFAULT_CHARGE_LIMIT_SOC_ENTITY = ""
+DEFAULT_DISCHARGE_LIMIT_SOC_ENTITY = ""
 
 DEFAULTS = {
     CONF_NORDPOOL_CONFIG_ENTRY: DEFAULT_NORDPOOL_ENTRY,
@@ -254,7 +248,9 @@ DEFAULTS = {
     CONF_PEAK_EXTRA_MARGIN: 0.05,
     CONF_MAX_CHARGE_C_RATE: 0.5,
     CONF_MAX_DISCHARGE_C_RATE: 0.45,
-    CONF_INVERTER_FULL_SCALE_POWER_W: 13800.0,
+    CONF_INVERTER_FULL_SCALE_POWER_W: 15000.0,
+    CONF_INVERTER_RATED_POWER_ENTITY: "",
+    CONF_BATTERY_POWER_ENTITY: "",
     CONF_MIN_ACTIVE_POWER_W: 500.0,
     CONF_GRID_CONNECTION_RATING: DEFAULT_GRID_CONNECTION_RATING,
     CONF_GRID_IMPORT_LIMIT_W: 17250.0,
@@ -270,8 +266,8 @@ DEFAULTS = {
     CONF_FORECAST_RISK_PERCENTILE: 70.0,
     CONF_HORIZON_HOURS: 36.0,
     CONF_UPDATE_INTERVAL_MINUTES: 5.0,
-    CONF_IDLE_EMS_MODE: "Self-Consumption",
-    CONF_USER_EMS_MODE: "User mode",
+    CONF_IDLE_EMS_MODE: "user",
+    CONF_USER_EMS_MODE: "user",
     CONF_MIN_CHARGE_TEMP_C: 5.0,
     CONF_MAX_BMS_TEMP_C: 45.0,
 }
@@ -311,6 +307,12 @@ EV_FORECAST_MODES = ("off", "detect", "sensor")
 PV_ORIENTATIONS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 SOLAR_FORECAST_SOURCES = ("auto", "solcast", "panel_model")
 EMS_MODE_OPTIONS = (
+    "self_consumption",
+    "backup",
+    "off_grid",
+    "feed_in_priority",
+    "user",
+    "pn_customer",
     "Self-Consumption",
     "Back up mode",
     "Off-Grid mode",

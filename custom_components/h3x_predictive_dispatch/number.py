@@ -24,6 +24,7 @@ from .const import (
     CONF_FORECAST_RISK_PERCENTILE,
     CONF_GRID_EXPORT_LIMIT_W,
     CONF_GRID_IMPORT_LIMIT_W,
+    CONF_INVERTER_FULL_SCALE_POWER_W,
     CONF_LOAD_HISTORY_DAYS,
     CONF_MAX_CHARGE_C_RATE,
     CONF_MAX_DISCHARGE_C_RATE,
@@ -54,6 +55,17 @@ class H3XPredictiveDispatchNumberDescription(NumberEntityDescription):
 
 
 NUMBERS: tuple[H3XPredictiveDispatchNumberDescription, ...] = (
+    H3XPredictiveDispatchNumberDescription(
+        key="inverter_reference_full_scale",
+        translation_key="inverter_reference_full_scale",
+        name="Inverter reference full scale",
+        icon="mdi:current-ac",
+        native_min_value=1000.0,
+        native_max_value=100000.0,
+        native_step=100.0,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        option_key=CONF_INVERTER_FULL_SCALE_POWER_W,
+    ),
     H3XPredictiveDispatchNumberDescription(
         key="load_history_days",
         translation_key="load_history_days",

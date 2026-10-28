@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+from .backend import official_bindings
 from .const import (
     CONF_BATTERY_CIRCUIT_RATING,
     CONF_GRID_CONNECTION_RATING,
@@ -210,6 +211,13 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> bool:
     """Set up the integration from a config entry."""
+    registry = er.async_get(hass)
+    updates = official_bindings(registry.entities.values(), {**entry.data, **entry.options})
+    if updates:
+        # A backend migration must never start physical dispatch implicitly.
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, **updates, "control_enabled": False}
+        )
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
     coordinator = H3XPredictiveDispatchCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()

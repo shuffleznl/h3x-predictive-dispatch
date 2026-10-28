@@ -12,6 +12,36 @@ views:
     - type: heading
       heading: Settings and control
       icon: mdi:tune
+    - type: entities
+      title: Pylontech device controls
+      show_header_toggle: false
+      entities:
+      - entity: select.fh3x15khy3peu_ems_mode
+        name: Device EMS mode
+      - entity: number.fh3x15khy3peu_charge_discharge_power_reference
+        name: Signed reference (%; negative charges)
+      - entity: number.fh3x15khy3peu_charge_limit_soc
+        name: Charge limit SOC
+      - entity: number.fh3x15khy3peu_on_grid_eps_reserve_soc
+        name: On-grid discharge reserve SOC
+      - entity: sensor.fh3x15khy3peu_battery_power
+        name: Measured battery power
+      - entity: sensor.fh3x15khy3peu_battery_current
+        name: Measured battery current
+      - entity: sensor.fh3x15khy3peu_bms_temperature
+        name: BMS temperature
+      - entity: sensor.fh3x15khy3peu_bms_module_count
+        name: Installed module count
+      - entity: sensor.fh3x15khy3peu_battery_capacity
+        name: Nominal system capacity
+      - entity: number.pylontech_h3x_predictive_dispatch_inverter_reference_full_scale
+        name: Inverter 100% reference rating (W)
+      - type: button
+        name: Pylontech connection and diagnostics
+        icon: mdi:cog
+        tap_action:
+          action: navigate
+          navigation_path: /config/integrations/integration/pylontech_fh3x
     - type: conditional
       conditions:
       - condition: state
@@ -44,72 +74,6 @@ views:
           tap_action:
             action: navigate
             navigation_path: /config/integrations/integration/h3x_modbus_translator
-    - type: entities
-      title: Battery override and weather reserve
-      show_header_toggle: false
-      entities:
-      - entity: switch.pylontech_h3x_bridge_force_charge
-        name: Force charge (up to 2 hours)
-      - entity: number.pylontech_h3x_bridge_force_charge_rate
-        name: Requested charge rate (% of rated power)
-      - entity: select.pylontech_h3x_bridge_charge_method
-        name: Charge command method
-      - entity: switch.pylontech_h3x_bridge_weather_reserve
-        name: Natural disaster / KNMI reserve
-      - entity: select.pylontech_h3x_bridge_weather_alert_threshold
-        name: Minimum warning colour
-      - entity: number.pylontech_h3x_bridge_weather_discharge_rate
-        name: Emergency discharge cap (%)
-      - entity: sensor.pylontech_h3x_bridge_control_owner
-        name: Active controller
-      - entity: sensor.pylontech_h3x_bridge_charge_control_status
-        name: Control intent / pause reason
-      - type: attribute
-        entity: sensor.pylontech_h3x_bridge_charge_control_status
-        attribute: charging_response
-        name: PCS charge-direction confirmation
-      - type: attribute
-        entity: sensor.pylontech_h3x_bridge_charge_control_status
-        attribute: last_rejected_entity_id
-        name: Last competing entity
-      - type: attribute
-        entity: sensor.pylontech_h3x_bridge_charge_control_status
-        attribute: last_control_error
-        name: Last control failure
-      - type: attribute
-        entity: sensor.pylontech_h3x_bridge_charge_control_status
-        attribute: charge_headroom_w
-        name: Available charging headroom (W)
-      - type: attribute
-        entity: sensor.pylontech_h3x_bridge_charge_control_status
-        attribute: grid_without_battery_w
-        name: Grid load excluding battery (W)
-      - type: attribute
-        entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
-        attribute: readback_raw
-        name: Inverter reference (- = charge, raw 0.1%)
-      - type: attribute
-        entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
-        attribute: readback_matches
-        name: Register command verified
-      - entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
-        name: Signed reference (%; negative charges)
-      - entity: sensor.pylontech_h3x_bridge_battery_power
-        name: Measured battery power (W)
-      - type: attribute
-        entity: sensor.pylontech_h3x_bridge_charge_control_status
-        attribute: slot_clock_offset_seconds
-        name: Inverter clock minus HA local (seconds)
-      - type: attribute
-        entity: sensor.pylontech_h3x_bridge_charge_control_status
-        attribute: slot_readback_matches
-        name: Time-slot registers verified
-      - type: button
-        name: Connection, Shelly, KNMI and siren settings
-        icon: mdi:cog
-        tap_action:
-          action: navigate
-          navigation_path: /config/integrations/integration/pylontech_h3x_bridge
     - type: entities
       title: Optimizer controls
       show_header_toggle: false
@@ -208,18 +172,6 @@ views:
         entity: sensor.pylontech_h3x_predictive_dispatch_solar_power
         attribute: measurement_source
         name: Live SMA measurement source
-    - type: entities
-      title: Pylontech H3X controls
-      show_header_toggle: false
-      entities:
-      - entity: select.pylontech_h3x_bridge_ems_mode
-        name: EMS mode
-      - entity: number.pylontech_h3x_bridge_charge_discharge_power_ref
-        name: Charge/discharge reference
-      - entity: number.pylontech_h3x_bridge_charge_limit_soc
-        name: Charge limit SOC
-      - entity: number.pylontech_h3x_bridge_discharge_limit_soc_eps
-        name: Discharge reserve SOC
   - type: grid
     column_span: 3
     cards:
@@ -245,7 +197,7 @@ views:
         name: Target power
         icon: mdi:flash
       - type: tile
-        entity: sensor.pylontech_h3x_bridge_battery_soc
+        entity: sensor.fh3x15khy3peu_battery_level
         name: Battery SOC
         icon: mdi:battery
     - type: grid
@@ -349,7 +301,7 @@ views:
       title: Battery power history
       hours_to_show: 24
       entities:
-      - entity: sensor.pylontech_h3x_bridge_battery_power
+      - entity: sensor.fh3x15khy3peu_battery_power
         name: Battery power
       - entity: sensor.pylontech_h3x_predictive_dispatch_target_power
         name: Optimizer target
@@ -357,7 +309,7 @@ views:
       title: Battery SOC history
       hours_to_show: 48
       entities:
-      - entity: sensor.pylontech_h3x_bridge_battery_soc
+      - entity: sensor.fh3x15khy3peu_battery_level
         name: Battery SOC
     - type: button
       name: Configure Shelly grid source

@@ -17,6 +17,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
+from .backend import official_bindings
 from .const import (
     CONF_ACTION_START_COST,
     CONF_AREA,
@@ -25,6 +26,7 @@ from .const import (
     CONF_BATTERY_CIRCUIT_RATING,
     CONF_BATTERY_MODULE_COUNT,
     CONF_BATTERY_MODULE_COUNT_ENTITY,
+    CONF_BATTERY_POWER_ENTITY,
     CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_KWH,
@@ -56,6 +58,7 @@ from .const import (
     CONF_HORIZON_HOURS,
     CONF_IDLE_EMS_MODE,
     CONF_INVERTER_FULL_SCALE_POWER_W,
+    CONF_INVERTER_RATED_POWER_ENTITY,
     CONF_LOAD_FORECAST_MODE,
     CONF_LOAD_HISTORY_DAYS,
     CONF_LOAD_POWER_ENTITY,
@@ -322,6 +325,13 @@ def _schema(
                 default=data[CONF_BATTERY_MODULE_COUNT_ENTITY],
             ): str,
             vol.Optional(
+                CONF_BATTERY_POWER_ENTITY, default=data[CONF_BATTERY_POWER_ENTITY]
+            ): str,
+            vol.Optional(
+                CONF_INVERTER_RATED_POWER_ENTITY,
+                default=data[CONF_INVERTER_RATED_POWER_ENTITY],
+            ): str,
+            vol.Optional(
                 CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
                 default=data[CONF_BATTERY_SYSTEM_CAPACITY_ENTITY],
             ): str,
@@ -534,7 +544,9 @@ def _schema(
 
 def _autodetected_defaults(hass: HomeAssistant) -> dict[str, Any]:
     """Return defaults from Nord Pool, Shelly and SMA when available."""
-    defaults: dict[str, Any] = {}
+    from homeassistant.helpers import entity_registry as er
+
+    defaults: dict[str, Any] = official_bindings(er.async_get(hass).entities.values(), {})
     entries = hass.config_entries.async_entries(NORDPOOL_DOMAIN)
     if entries:
         entry = entries[0]

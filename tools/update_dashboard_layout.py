@@ -1,127 +1,96 @@
-"""Apply the native Home Assistant control/operations/diagnostics layout."""
+"""Migrate both native dashboard copies to the official Pylontech backend."""
 
 from pathlib import Path
+
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+ENTITY_MAP = {
+    "select.pylontech_h3x_bridge_ems_mode": "select.fh3x15khy3peu_ems_mode",
+    "number.pylontech_h3x_bridge_charge_discharge_power_ref": "number.fh3x15khy3peu_charge_discharge_power_reference",
+    "number.pylontech_h3x_bridge_charge_limit_soc": "number.fh3x15khy3peu_charge_limit_soc",
+    "number.pylontech_h3x_bridge_discharge_limit_soc_eps": "number.fh3x15khy3peu_on_grid_eps_reserve_soc",
+    "sensor.pylontech_h3x_bridge_battery_power": "sensor.fh3x15khy3peu_battery_power",
+    "sensor.pylontech_h3x_bridge_battery_soc": "sensor.fh3x15khy3peu_battery_level",
+}
 
 
-def override_controls():
+def official_controls():
     return {
         "type": "entities",
-        "title": "Battery override and weather reserve",
+        "title": "Pylontech device controls",
         "show_header_toggle": False,
         "entities": [
-            {"entity": f"{domain}.pylontech_h3x_bridge_{key}", "name": name}
-            for domain, key, name in (
-                ("switch", "force_charge", "Force charge (up to 2 hours)"),
-                ("number", "force_charge_rate", "Charge rate (% of rated power)"),
-                ("select", "charge_method", "Charge command method"),
-                ("switch", "weather_reserve", "Natural disaster / KNMI reserve"),
-                ("select", "weather_alert_threshold", "Minimum warning colour"),
-                ("number", "weather_discharge_rate", "Emergency discharge cap (%)"),
-                ("sensor", "control_owner", "Active controller"),
-                ("sensor", "charge_control_status", "Control intent / pause reason"),
-            )
-        ]
-        + [
-            {"type": "attribute", "entity": f"{domain}.pylontech_h3x_bridge_{key}",
-             "attribute": attribute, "name": name}
-            for domain, key, attribute, name in (
-                ("sensor", "charge_control_status", "charging_response", "Measured charging response"),
-                ("sensor", "charge_control_status", "last_rejected_entity_id", "Last competing entity"),
-                ("sensor", "charge_control_status", "last_control_error", "Last control failure"),
-                ("sensor", "charge_control_status", "charge_headroom_w", "Available charging headroom (W)"),
-                ("sensor", "charge_control_status", "grid_without_battery_w", "Grid load excluding battery (W)"),
-                ("number", "charge_discharge_power_ref", "readback_raw", "Inverter reference (- = charge, raw 0.1%)"),
-                ("number", "charge_discharge_power_ref", "readback_matches", "Register command verified"),
+            {"entity": entity, "name": name}
+            for entity, name in (
+                ("select.fh3x15khy3peu_ems_mode", "Device EMS mode"),
+                (
+                    "number.fh3x15khy3peu_charge_discharge_power_reference",
+                    "Signed reference (%; negative charges)",
+                ),
+                ("number.fh3x15khy3peu_charge_limit_soc", "Charge limit SOC"),
+                (
+                    "number.fh3x15khy3peu_on_grid_eps_reserve_soc",
+                    "On-grid discharge reserve SOC",
+                ),
+                ("sensor.fh3x15khy3peu_battery_power", "Measured battery power"),
+                ("sensor.fh3x15khy3peu_battery_current", "Measured battery current"),
+                ("sensor.fh3x15khy3peu_bms_temperature", "BMS temperature"),
+                ("sensor.fh3x15khy3peu_bms_module_count", "Installed module count"),
+                ("sensor.fh3x15khy3peu_battery_capacity", "Nominal system capacity"),
+                (
+                    "number.pylontech_h3x_predictive_dispatch_inverter_reference_full_scale",
+                    "Inverter 100% reference rating (W)",
+                ),
             )
         ]
         + [
             {
                 "type": "button",
-                "name": "Connection, Shelly, KNMI and siren settings",
+                "name": "Pylontech connection and diagnostics",
                 "icon": "mdi:cog",
                 "tap_action": {
                     "action": "navigate",
-                    "navigation_path": "/config/integrations/integration/pylontech_h3x_bridge",
+                    "navigation_path": "/config/integrations/integration/pylontech_fh3x",
                 },
             }
         ],
     }
 
 
+def migrate(value):
+    if isinstance(value, str):
+        return ENTITY_MAP.get(value, value)
+    if isinstance(value, list):
+        return [migrate(child) for child in value]
+    if isinstance(value, dict):
+        return {key: migrate(child) for key, child in value.items()}
+    return value
+
+
 def main():
-    path = ROOT / "dashboards/h3x-predictive-dispatch.yaml"
-    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-    view = doc["views"][0]
-    if "sections" in view:
-        return
-    groups = {"controls": [override_controls()], "operations": [], "diagnostics": []}
-    control_titles = {
-        "Optimizer controls",
-        "Strategy profile guide",
-        "Forecast configuration and status",
-        "Pylontech H3X controls",
-    }
-    for card in view.pop("cards"):
-        if card.get("type") == "heading":
-            # Section headings replace the old scattered headings.
-            continue
-        title = card.get("title", "")
-        if title in control_titles:
-            groups["controls"].append(card)
-        elif title in {
-            "Arbitrage diagnostics",
-            "Shelly Pro 3EM grid trend and limits",
-            "Dutch retail price assumptions",
-        }:
-            groups["diagnostics"].append(card)
-        else:
-            if any(
-                child.get("entity", "").endswith("_next_charge_slot")
-                for child in card.get("cards", [])
-            ):
-                groups["operations"].append(
-                    {
-                        "type": "heading",
-                        "heading": "Planned actions",
-                        "icon": "mdi:calendar-clock",
-                    }
-                )
-            if card.get("type") == "grid":
-                card["columns"] = min(card.get("columns", 2), 2)
-            groups["operations"].append(card)
-    # Retain searchable headings expected by the dashboard contract.
-    groups["operations"].insert(0, {"type": "heading", "heading": "EV charging policy"})
-    groups["diagnostics"].insert(0, {"type": "heading", "heading": "Price assumptions"})
-    view.update(
-        {
-            "type": "sections",
-            "max_columns": 3,
-            "sections": [
-                {
-                    "type": "grid",
-                    "column_span": 3,
-                    "cards": [
-                        {"type": "heading", "heading": title, "icon": icon},
-                        *groups[key],
-                    ],
-                }
-                for key, title, icon in (
-                    ("controls", "Settings and control", "mdi:tune"),
-                    ("operations", "Usage, savings and power", "mdi:chart-line"),
-                    ("diagnostics", "Statistics and diagnostics", "mdi:table-search"),
-                )
-            ],
+    source = ROOT / "dashboards/h3x-predictive-dispatch.yaml"
+    dashboard = yaml.safe_load(source.read_text(encoding="utf-8"))
+    cards = dashboard["views"][0]["sections"][0]["cards"]
+    cards[:] = [
+        card
+        for card in cards
+        if card.get("title")
+        not in {
+            "Battery override and weather reserve",
+            "Pylontech H3X controls",
+            "Pylontech device controls",
         }
-    )
-    source = yaml.safe_dump(doc, sort_keys=False, allow_unicode=False, width=140)
-    path.write_text(source, encoding="utf-8")
-    (
+    ]
+    cards.insert(1, official_controls())
+    dashboard = migrate(dashboard)
+    content = yaml.safe_dump(dashboard, sort_keys=False, allow_unicode=False, width=110)
+    for path in (
+        source,
         ROOT
-        / "custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml"
-    ).write_text(source, encoding="utf-8")
+        / "custom_components/h3x_predictive_dispatch/dashboards/h3x-predictive-dispatch.yaml",
+    ):
+        path.write_text(content, encoding="utf-8")
 
 
 if __name__ == "__main__":

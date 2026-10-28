@@ -20,6 +20,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
+from .backend import resolve_ems_option
 from .const import (
     CONF_ACTION_START_COST,
     CONF_AREA,
@@ -28,6 +29,7 @@ from .const import (
     CONF_BATTERY_CIRCUIT_RATING,
     CONF_BATTERY_MODULE_COUNT,
     CONF_BATTERY_MODULE_COUNT_ENTITY,
+    CONF_BATTERY_POWER_ENTITY,
     CONF_BATTERY_SYSTEM_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_ENTITY,
     CONF_BATTERY_USABLE_CAPACITY_KWH,
@@ -59,6 +61,7 @@ from .const import (
     CONF_HORIZON_HOURS,
     CONF_IDLE_EMS_MODE,
     CONF_INVERTER_FULL_SCALE_POWER_W,
+    CONF_INVERTER_RATED_POWER_ENTITY,
     CONF_LOAD_FORECAST_MODE,
     CONF_LOAD_HISTORY_DAYS,
     CONF_LOAD_POWER_ENTITY,
@@ -166,10 +169,6 @@ PV_ORIENTATION_PROFILE: dict[str, tuple[float, float]] = {
     "W": (0.70, 3.0),
     "NW": (0.45, 4.0),
 }
-
-
-class BridgeOverrideActive(Exception):
-    """A higher-priority bridge controller preempted this dispatch."""
 
 
 @dataclass(slots=True)
@@ -355,7 +354,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Persist one option and refresh the optimizer."""
         options = {**self.entry.options, key: value}
         self._normalize_mutable_options(options)
-        if key != CONF_STRATEGY_PROFILE:
+        if key not in {CONF_STRATEGY_PROFILE, CONF_INVERTER_FULL_SCALE_POWER_W}:
             options[CONF_STRATEGY_PROFILE] = "custom"
         self.hass.config_entries.async_update_entry(self.entry, options=options)
         await self.async_options_updated()
@@ -2692,26 +2691,31 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if value is not None
         ]
         if grid_readings:
-            current_charge_w = self._requested_charge_power_w()
-            return max(import_limit - max(grid_readings) + current_charge_w, 0.0)
+            measured_battery_w = self._power_state_w(
+                str(self._option(CONF_BATTERY_POWER_ENTITY) or "")
+            )
+            # Never credit requested-but-undelivered charging as grid headroom.
+            adjustment_w = (
+                -(measured_battery_w or 0.0)
+                if grid_import_power_w is not None else 0.0
+            )
+            return max(import_limit - max(grid_readings) + adjustment_w, 0.0)
         if has_load_power:
             return max(import_limit - max(load_power_w or 0.0, 0.0), 0.0)
         return None
 
-    def _requested_charge_power_w(self) -> float:
-        """Return the currently requested battery charge power, if known."""
-        percent = self._state_float(str(self._option(CONF_POWER_REF_ENTITY)))
-        if percent is None:
-            percent = self._last_power_percent
-        if percent is None or percent >= 0:
-            return 0.0
-
-        full_scale = max(float(self._option(CONF_INVERTER_FULL_SCALE_POWER_W)), 1.0)
-        return min(abs(percent) / 100 * full_scale, full_scale)
+    def _inverter_full_scale_power_w(self) -> float:
+        """Use the official PCS rating, not the household connection limit."""
+        rating = self._power_state_w(
+            str(self._option(CONF_INVERTER_RATED_POWER_ENTITY) or "")
+        )
+        if rating is not None and rating > 0:
+            return rating
+        return max(float(self._option(CONF_INVERTER_FULL_SCALE_POWER_W)), 1.0)
 
     def _power_to_percent(self, action: str, power_w: float) -> float:
         """Convert AC watt target into the signed H3X power reference percentage."""
-        full_scale = max(float(self._option(CONF_INVERTER_FULL_SCALE_POWER_W)), 1.0)
+        full_scale = self._inverter_full_scale_power_w()
         percent = min(max(power_w / full_scale * 100, 0.0), 100.0)
         return -percent if action == "charge" else percent
 
@@ -2838,48 +2842,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (TypeError, ValueError):
             return None
 
-    def _bridge_control_owner(self) -> str | None:
-        """Resolve ownership from the actual configured reference's bridge."""
-        from homeassistant.helpers import entity_registry as er
-        registry = er.async_get(self.hass)
-        entity = registry.async_get(str(self._option(CONF_POWER_REF_ENTITY)).strip())
-        bridge = self.hass.data.get("pylontech_h3x_bridge", {}).get(
-            entity.config_entry_id if entity else ""
-        )
-        override = getattr(bridge, "override", None)
-        return override.diagnostics()["control_owner"] if override and override.active else None
-
-    def _pause_for_bridge(self, decision: Decision, owner: str) -> None:
-        """Yield without treating an intentional override as a dispatch failure."""
-        decision.applied = False
-        decision.apply_error = None
-        decision.reason = f"{decision.reason}; bridge {owner} override active"
-        decision.attributes["control_owner"] = owner
-        self._last_power_percent = None
-        self._last_ems_mode = None
-        self._last_applied_action = None
-        self._last_action_changed_at = None
-        self._last_target_power_w = 0.0
-
-    async def _async_call_bridge_service(self, domain, service, data, **kwargs):
-        """Recheck priority at every awaited write, including a service race."""
-        if owner := self._bridge_control_owner():
-            raise BridgeOverrideActive(owner)
-        try:
-            result = await self.hass.services.async_call(domain, service, data, **kwargs)
-        except HomeAssistantError:
-            if owner := self._bridge_control_owner():
-                raise BridgeOverrideActive(owner) from None
-            raise
-        if owner := self._bridge_control_owner():
-            raise BridgeOverrideActive(owner)
-        return result
-
     async def _apply_decision(self, decision: Decision) -> None:
         """Apply the control decision through Home Assistant entity services."""
-        if owner := self._bridge_control_owner():
-            self._pause_for_bridge(decision, owner)
-            return
         try:
             self._stabilize_runtime_action(decision)
             await self._set_soc_limits(decision)
@@ -2887,6 +2851,8 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._set_ems_mode(str(self._option(CONF_USER_EMS_MODE)))
                 await self._set_power_ref(decision.target_power_percent)
             else:
+                # The official power-reference number is unavailable outside User mode.
+                await self._set_ems_mode(str(self._option(CONF_USER_EMS_MODE)))
                 await self._set_power_ref(0.0)
                 await self._set_ems_mode(str(self._option(CONF_IDLE_EMS_MODE)))
             decision.applied = True
@@ -2894,8 +2860,6 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._last_action_changed_at = dt_util.utcnow()
             self._last_applied_action = decision.action
             self._last_target_power_w = decision.target_power_w
-        except BridgeOverrideActive as err:
-            self._pause_for_bridge(decision, str(err))
         except Exception as err:  # pylint: disable=broad-except
             LOGGER.exception("Failed to apply H3X arbitrage decision")
             decision.applied = False
@@ -2915,7 +2879,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._last_target_power_w = (
                 abs(percent or 0.0)
                 / 100
-                * float(self._option(CONF_INVERTER_FULL_SCALE_POWER_W))
+                * self._inverter_full_scale_power_w()
             )
 
         previous = self._last_applied_action
@@ -2979,7 +2943,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
         if charge_entity and self.hass.states.get(charge_entity) is not None:
-            await self._async_call_bridge_service(
+            await self.hass.services.async_call(
                 "number",
                 "set_value",
                 {"value": round(max_soc)},
@@ -2987,7 +2951,7 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 blocking=True,
             )
         if discharge_entity and self.hass.states.get(discharge_entity) is not None:
-            await self._async_call_bridge_service(
+            await self.hass.services.async_call(
                 "number",
                 "set_value",
                 {"value": round(floor_soc)},
@@ -2998,12 +2962,13 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _set_ems_mode(self, mode: str) -> None:
         """Set EMS mode if it changed."""
         entity_id = str(self._option(CONF_EMS_MODE_ENTITY)).strip()
-        if not entity_id:
-            return
         state = self.hass.states.get(entity_id)
-        if state and state.state == mode and self._last_ems_mode == mode:
+        if state is None or state.state in {STATE_UNKNOWN, STATE_UNAVAILABLE}:
+            raise RuntimeError("EMS mode entity is unavailable or not configured")
+        mode = resolve_ems_option(mode, state.attributes.get("options", []))
+        if state.state == mode:
             return
-        await self._async_call_bridge_service(
+        await self.hass.services.async_call(
             "select",
             "select_option",
             {"option": mode},
@@ -3029,10 +2994,10 @@ class H3XPredictiveDispatchCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if current is not None and abs(current - percent) < 0.2:
             self._last_power_percent = percent
             return
-        if self._last_power_percent is not None and abs(self._last_power_percent - percent) < 0.2:
-            return
+        if current is None:
+            raise RuntimeError("power reference entity is unavailable in User mode")
 
-        await self._async_call_bridge_service(
+        await self.hass.services.async_call(
             "number",
             "set_value",
             {"value": percent},

@@ -12,7 +12,21 @@ This repository contains one HACS integration:
 
 | Integration | Domain | Purpose |
 | --- | --- | --- |
-| Pylontech H3X Predictive Dispatch | `h3x_predictive_dispatch` | Ingest Nord Pool prices, compute battery arbitrage decisions, and optionally control Pylontech H3X Bridge entities. |
+| Pylontech H3X Predictive Dispatch | `h3x_predictive_dispatch` | Ingest Nord Pool prices, forecast demand/PV and dispatch through the official Pylontech integration. |
+
+## Release 0.2.17: Official Pylontech Backend
+
+Device communication now belongs to [Pylontech Force H3X](https://github.com/pylontech-sw/HA-pylontech-force-H3X), domain `pylontech_fh3x` (validated against `0.6.26`). Predictive Dispatch only calls its Home Assistant select/number services; it never opens a Modbus connection or routes commands through the discontinued custom bridge.
+
+At startup, one unambiguous official device is bound by entity-registry unique IDs, including renamed entities. Existing bridge selections are replaced while tariff, Shelly/SMA/Solcast, EV, strategy and electrical settings are retained. Automatic dispatch is switched off when bindings migrate. Review the mappings before enabling it. An explicitly configured unrelated backend or ambiguous multi-device installation is not silently reassigned.
+
+The official EMS options use `user`, not the translated label `User mode`. Select User before changing the signed reference, including zero; the official reference entity is unavailable outside that mode. Idle defaults to User with zero reference instead of resetting the inverter to Self-Consumption. A manually selected different idle mode remains configurable. Cached commands no longer hide external changes to the actual reference.
+
+Reference percentages use the official reported PCS rated power when positive, not the house connection limit. If it reports zero/unavailable, set **Inverter reference full scale** to the inverter nameplate rating (`15000 W` for this FH3X15KHY3PEU), not the continuous/peak limit. Existing grid/branch caps remain unchanged. Charging headroom credits measured battery power rather than assuming that a requested charge rate was physically delivered; missing measured power earns no extra headroom.
+
+The dashboard uses official EMS/SOC/reference, measured power/current, temperature, module count and nominal capacity. Removed bridge-only Force Charge/weather controls and nonexistent readback attributes. Both dashboard copies match. Enable the official **Engineering diagnostics** exposure to retain module count across reloads; detailed BMS/cell polling is not required. The official nominal capacity is not usable capacity: six modules are `30.72 kWh` nominal and `29.17 kWh` usable per the datasheet.
+
+Disable the old bridge integration before enabling the official one. Do not run competing Modbus clients or economic controllers. A successful service call or reference readback is not proof of physical charging; measured battery power/current and grid behavior must confirm actual energy flow. Older release notes below describe the retired bridge backend and are historical only.
 
 ## Release 0.2.16: Optional Meter Translator Dashboard
 
@@ -68,7 +82,7 @@ The packaged dashboard now uses native Home Assistant sections: settings and ove
 - Home Assistant `2025.3.0` or newer (validated with `2026.10.4`).
 - HACS.
 - Nord Pool integration configured in Home Assistant.
-- Pylontech H3X Bridge `0.4.3` or newer installed from `https://github.com/shuffleznl/h3x-bridge`.
+- [Official Pylontech Force H3X](https://github.com/pylontech-sw/HA-pylontech-force-H3X), domain `pylontech_fh3x`, validated with `0.6.26`. Use Engineering diagnostics for module count, current and temperature; leave detailed cell polling off unless needed.
 - Optional but recommended for self-consumption optimization: Shelly Pro 3EM power sensors, an SMA Sunny Boy PV power sensor, and a Solcast rooftop forecast API key.
 
 ## Predictive Dispatch Architecture
@@ -85,9 +99,9 @@ The controller recalculates a rolling schedule every five minutes over every pub
 
 This follows the operational strengths visible in [ChargeIQ](https://github.com/johanzander/bess-manager), [Predbat](https://github.com/springfall2008/batpred), and [EMHASS](https://github.com/davidusb-geek/emhass): explicit counterfactual cost, degradation-aware optimization, forecast-vs-actual diagnostics, fuse protection and continuous re-planning. The implementation remains a native HACS integration and does not require a separate add-on or cloud service.
 
-The controller calls the Nord Pool `get_price_indices_for_date` service, falls back to `get_prices_for_date` when custom-resolution indices are empty, reads the Pylontech H3X Bridge sensors, and writes the Pylontech H3X Bridge EMS mode and charge/discharge power entities when automatic control is enabled.
+The controller calls the Nord Pool `get_price_indices_for_date` service, falls back to `get_prices_for_date` when custom-resolution indices are empty, reads the official Pylontech sensors, and writes its EMS mode and signed charge/discharge percentage when automatic control is enabled.
 
-Bridge repository releases and Predictive Dispatch releases are independent. The Home Assistant bridge domain remains `pylontech_h3x_bridge` after the repository rename, so existing entity IDs and configured entity selections do not need migration. Bridge `0.3.9` moved optimizer dashboards out of the bridge package; Predictive Dispatch continues to package its own dashboard under `custom_components/h3x_predictive_dispatch/dashboards/`.
+Official Pylontech and Predictive Dispatch releases are independent. Predictive Dispatch packages its dashboard under `custom_components/h3x_predictive_dispatch/dashboards/`. Storage-mode dashboards must be refreshed after this backend migration; YAML dashboards referencing that packaged source follow package updates.
 
 The Nord Pool config entry is resolved automatically at runtime. If Home Assistant recreates the Nord Pool entry during an update, the controller falls back from the old stored entry ID to the current entry instead of returning empty price slots.
 
@@ -148,7 +162,7 @@ Related Home Assistant energy optimizers provide useful reference points. [Predb
 2. Install **Pylontech H3X Predictive Dispatch**.
 3. Restart Home Assistant.
 4. Go to **Settings > Devices & services > Add integration**.
-5. Add **Pylontech H3X Predictive Dispatch** and review the detected Nord Pool area and Pylontech H3X Bridge entity IDs.
+5. Add **Pylontech H3X Predictive Dispatch** and review the detected Nord Pool area and official Pylontech entity bindings.
 
 ## Dashboard Updates
 
@@ -167,26 +181,28 @@ After the decision sensors look correct, enable automatic control from the integ
 `h3x_predictive_dispatch` can be installed and calculate schedules alongside
 the earlier `h3x_energy_arbitrage` integration because its domain, config entry,
 device, unique IDs, and entity namespace are separate. Both integrations still
-target the same Pylontech bridge actuator entities. Keep automatic control
+target the same battery. Keep automatic control
 disabled in at least one integration at all times; enabling both controllers can
 make them overwrite each other's EMS mode and power reference every update.
 
-## Default Controlled Entities
+## Official Entity Bindings
+
+The examples below are the actual default IDs for an FH3X15KHY3PEU device. Other models or user-renamed entities have different IDs; runtime binding uses exact registry keys, not these example names. Shelly remains the primary grid/load input for an AC-coupled SMA installation.
 
 | Purpose | Default entity |
 | --- | --- |
-| EMS mode | `select.pylontech_h3x_bridge_ems_mode` |
-| Charge/discharge power | `number.pylontech_h3x_bridge_charge_discharge_power_ref` |
-| Battery SOC | `sensor.pylontech_h3x_bridge_battery_soc` |
-| House load | `sensor.pylontech_h3x_bridge_load_power` |
+| EMS mode | `select.fh3x15khy3peu_ems_mode`, option `user` for external references |
+| Charge/discharge power | `number.fh3x15khy3peu_charge_discharge_power_reference`, negative charges / positive discharges, percent |
+| Battery SOC | `sensor.fh3x15khy3peu_battery_level` |
+| House load fallback | `sensor.fh3x15khy3peu_home_load_power`; a valid native meter is needed for this reading |
 | Real-time grid import/export | Auto-detected Shelly Pro 3EM `total_active_power`, or the configured signed Shelly grid sensor. |
 | Grid import trend | Derived internally from the selected Shelly Pro 3EM source and Home Assistant Recorder. |
-| Battery module count | `sensor.pylontech_h3x_bridge_battery_module_count` |
-| Battery system capacity | `sensor.pylontech_h3x_bridge_battery_system_capacity` |
-| Battery usable capacity | `sensor.pylontech_h3x_bridge_battery_usable_capacity` |
-| BMS temperature | `sensor.pylontech_h3x_bridge_bms_temperature` |
-| Charge SOC limit | `number.pylontech_h3x_bridge_charge_limit_soc` |
-| Discharge SOC limit | `number.pylontech_h3x_bridge_discharge_limit_soc_eps` |
+| Battery module count | `sensor.fh3x15khy3peu_bms_module_count` |
+| Battery system capacity | `sensor.fh3x15khy3peu_battery_capacity`, nominal kWh |
+| Battery usable capacity | Derived from module count and datasheet; not the nominal sensor |
+| BMS temperature | `sensor.fh3x15khy3peu_bms_temperature` |
+| Charge SOC limit | `number.fh3x15khy3peu_charge_limit_soc` |
+| On-grid discharge SOC floor | `number.fh3x15khy3peu_on_grid_eps_reserve_soc` |
 
 ## Optional Load And PV Inputs
 
@@ -318,7 +334,7 @@ Force H3 capacity is modeled by module count, not by an arbitrary kWh default. T
 
 Your current target system is `6` modules, therefore `30.72 kWh` system capacity and `29.17 kWh` usable capacity. The older `20 kWh` default was only a scaffold value and was not read from the inverter or BMS.
 
-The Pylontech Modbus documentation includes a BMS/ESS register for "Module number in series" at offset `0x0036`; with ESS base address `0x1400`, this is register `0x1436` / decimal `5174` on the BMS side. The arbitrage integration does not open its own Modbus connection. Instead, it consumes `sensor.pylontech_h3x_bridge_battery_module_count`, `sensor.pylontech_h3x_bridge_battery_system_capacity`, and `sensor.pylontech_h3x_bridge_battery_usable_capacity` when the bridge exposes those values. Until those sensors exist, set the module count manually in the integration options or with the runtime number entity; the system and usable capacity values are derived from the datasheet table.
+The Pylontech Modbus documentation includes a BMS/ESS register for "Module number in series" at offset `0x0036`; with ESS base address `0x1400`, this is register `0x1436` / decimal `5174` on the BMS side. Arbitrage does not open a Modbus connection: it reads the official `bms_module_count` entity and validates nominal capacity against the module datasheet. Usable capacity is derived separately. If the diagnostic entity is disabled or unavailable, the explicitly configured module count remains the fallback; verify that it matches the physical installation.
 
 Capacity is safety-critical for this optimizer. If the module count is too low, the controller underestimates available energy and may miss profitable discharge/charge windows. If it is too high, it can overestimate energy above reserve and plan charge/discharge energy the physical battery cannot deliver. The usable capacity is validated against both the datasheet table and the datasheet `95%` depth-of-discharge basis, with roughly `5%` tolerance. Existing installs that still have only the old non-multiple capacity value will raise a Home Assistant repair warning until the module count is confirmed.
 
@@ -330,11 +346,11 @@ When the full-charge interval is due, the optimizer temporarily raises the charg
 
 ## Charging Caveat
 
-This controller writes through Pylontech H3X Bridge. If discharging works but grid charging does not, verify the H3X inverter configuration first: Work Mode `P5` charge/discharge time control or another grid-charge-capable mode, Power from Grid/import limit, charge SOC limit, BMS state, and meter configuration.
+This controller writes through the official Pylontech integration. If the inverter accepts a negative reference but does not draw charging power, use measured battery power/current and native diagnostics to investigate. An accepted reference does not establish physical charging, and no undocumented register or meter-emulation fix is assumed. Device protection, electrical installation and firmware configuration remain the installer's responsibility.
 
 ## Nord Pool Update Caveat
 
-If current price is `unknown` after updating or recreating the Nord Pool integration, check the `Decision` sensor attributes for `price_fetch_errors`. Capacity sensors should still stay populated from the bridge or module-count fallback even when price fetching is temporarily unavailable.
+If current price is `unknown` after updating or recreating the Nord Pool integration, check the `Decision` sensor attributes for `price_fetch_errors`. Capacity sensors should still stay populated from official telemetry or the configured module count even when price fetching is temporarily unavailable.
 
 ## Exposed Sensors
 

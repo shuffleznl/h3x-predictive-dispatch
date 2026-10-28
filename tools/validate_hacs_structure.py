@@ -44,11 +44,11 @@ def main() -> None:
         raise AssertionError(f"manifest domain must be {DOMAIN}")
     if set(manifest.get("after_dependencies", [])) != {
         "nordpool",
-        "pylontech_h3x_bridge",
+        "pylontech_fh3x",
         "recorder",
     }:
         raise AssertionError(
-            "after_dependencies must retain Nord Pool, Pylontech H3X Bridge, "
+            "after_dependencies must retain Nord Pool, official Pylontech, "
             "and Recorder"
         )
     if str(manifest["version"]).endswith("-dev"):
@@ -59,8 +59,8 @@ def main() -> None:
         raise AssertionError("manifest issue tracker points to the wrong repository")
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    if "https://github.com/shuffleznl/h3x-bridge" not in readme:
-        raise AssertionError("README must link to the renamed H3X Bridge repository")
+    if "https://github.com/pylontech-sw/HA-pylontech-force-H3X" not in readme:
+        raise AssertionError("README must link to the official Pylontech repository")
     if "pylontech-fh3x-bridge" in readme:
         raise AssertionError("README still links to the old bridge repository name")
 

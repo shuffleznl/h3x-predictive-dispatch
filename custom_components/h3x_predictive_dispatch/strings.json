@@ -36,6 +36,8 @@
           "pv_panel_wp": "PV panel Wp rating",
           "pv_inverter_limit_w": "PV inverter output limit W",
           "battery_module_count_entity": "Battery module count sensor entity",
+          "battery_power_entity": "Measured battery power entity (negative charging, W)",
+          "inverter_rated_power_entity": "Official PCS rated power entity (100% reference, W)",
           "battery_system_capacity_entity": "Battery system capacity sensor entity",
           "battery_usable_capacity_entity": "Battery usable capacity sensor entity",
           "bms_temperature_entity": "BMS temperature sensor entity",
@@ -139,6 +141,8 @@
           "pv_panel_wp": "PV panel Wp rating",
           "pv_inverter_limit_w": "PV inverter output limit W",
           "battery_module_count_entity": "Battery module count sensor entity",
+          "battery_power_entity": "Measured battery power entity (negative charging, W)",
+          "inverter_rated_power_entity": "Official PCS rated power entity (100% reference, W)",
           "battery_system_capacity_entity": "Battery system capacity sensor entity",
           "battery_usable_capacity_entity": "Battery usable capacity sensor entity",
           "bms_temperature_entity": "BMS temperature sensor entity",
@@ -335,6 +339,7 @@
       "ev_discharge_block": {"name": "Block discharge while EV charging"}
     },
     "number": {
+      "inverter_reference_full_scale": {"name": "Inverter reference full scale"},
       "load_history_days": {"name": "Load history window"},
       "solcast_update_interval": {"name": "Solcast refresh interval"},
       "ev_charging_threshold": {"name": "EV detection threshold"},
